@@ -4,5 +4,7 @@ declare module 'cloudflare:test' {
     TEST_MIGRATIONS: D1Migration[];
     ADMIN_PASSWORD: string;
     SESSION_SECRET: string;
+    RESEND_API_KEY?: string;
+    NOTIFY_EMAIL_FROM?: string;
   }
 }

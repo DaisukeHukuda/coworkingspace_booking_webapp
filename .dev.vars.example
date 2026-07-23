@@ -1,2 +1,4 @@
 ADMIN_PASSWORD=changeme
 SESSION_SECRET=changeme-long-random-string
+RESEND_API_KEY=
+NOTIFY_EMAIL_FROM=onboarding@resend.dev
