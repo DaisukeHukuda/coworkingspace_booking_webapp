@@ -2052,8 +2052,9 @@ describe('admin requests list', () => {
 
     const byMember = await app.request(`/admin/requests/all?member_id=${idA}`, { headers: { cookie } }, env);
     const htmlA = await byMember.text();
-    expect(htmlA).toContain('会員甲');
-    expect(htmlA).not.toContain('会員乙');
+    // 絞り込みフォームの会員ドロップダウンには全会員名が並ぶため、行の有無は利用日で判定する
+    expect(htmlA).toContain('9/10');
+    expect(htmlA).not.toContain('9/11');
 
     const byRange = await app.request('/admin/requests/all?from=2026-09-11&to=2026-09-11', { headers: { cookie } }, env);
     const htmlB = await byRange.text();
@@ -2609,7 +2610,9 @@ git commit -m "feat: 受付停止日と設定（通知先メール・受付期�
 - Modify: `src/routes/admin.tsx`（ログインPOSTに試行制限を組み込み）
 - Modify: `src/index.ts`（全文差し替え: robots.txt 追加）
 - Modify: `src/routes/admin/members.tsx`（POST `/:id` と `/:id/reissue` の0行更新を notfound エラーに）
+- Modify: `src/routes/admin/requests.tsx`（confirm/decline の id 検証を `/^\d{1,9}$/` に — S2-6レビュー指摘の水平展開）
 - Modify: `test/admin-auth.test.ts`（Cookie属性とログアウトlocationのアサーション追加 — 明示2箇所）
+- Modify: `test/notify.test.ts`（declined通知テスト追加・fetchのmethod/headers検証追加 — S2-4レビュー指摘）
 - Modify: `README.md`（全文差し替え）
 - Test: `test/hardening.test.ts`
 
@@ -2705,6 +2708,38 @@ describe('hardening', () => {
     expect(out.headers.get('location')).toBe('/admin/login');
 ```
 
+`test/notify.test.ts` の補強（2箇所）:
+
+「requested はスタッフ宛に送信し sent を記録する」テストの `expect(calls[0].url).toBe('https://api.resend.com/emails');` の直後に3行追加:
+
+```ts
+    expect(calls[0].init.method).toBe('POST');
+    const headers = calls[0].init.headers as Record<string, string>;
+    expect(headers.authorization).toBe('Bearer key');
+    expect(headers['content-type']).toBe('application/json');
+```
+
+describe('notify') の末尾に新規テストを追加:
+
+```ts
+  it('declined は会員本人宛に理由付きで送信する', async () => {
+    const id = await seedRequest();
+    await env.DB.prepare(`UPDATE requests SET status = 'declined', admin_note = '満席のため' WHERE id = ?`).bind(id).run();
+    const calls: { init: RequestInit }[] = [];
+    const fetcher = (async (_url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ init: init! });
+      return new Response('{}', { status: 200 });
+    }) as typeof fetch;
+
+    await sendRequestNotification(env.DB, { RESEND_API_KEY: 'key' }, id, 'declined', 'http://localhost:8787', fetcher);
+
+    const body = JSON.parse(String(calls[0].init.body));
+    expect(body.to).toEqual(['member@example.com']);
+    expect(body.subject).toContain('リクエストについて');
+    expect(body.text).toContain('満席のため');
+  });
+```
+
 - [ ] **Step 2: テストが失敗することを確認**
 
 Run: `npm test`
@@ -2794,6 +2829,20 @@ app.route('/m', member);
 export default app;
 ```
 
+`src/routes/admin/requests.tsx` の変更（2箇所）: confirm と decline のハンドラにある
+
+```tsx
+  const id = /^\d+$/.test(idRaw) ? Number(idRaw) : null;
+```
+
+をどちらも
+
+```tsx
+  const id = /^\d{1,9}$/.test(idRaw) ? Number(idRaw) : null;
+```
+
+に置き換える（member.tsx のキャンセル経路と同じ桁数上限に揃える）。
+
 `src/routes/admin/members.tsx` の変更（3箇所）:
 
 `ERROR_MESSAGES` に1行追加:
@@ -2830,7 +2879,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 - [ ] **Step 4: テストが通ることを確認**
 
 Run: `npm test`
-Expected: PASS（hardening 4件を含む累計 85 件。admin-auth の補強アサーションも通ること）
+Expected: PASS（hardening 4件・notify 6件を含む累計 86 件。admin-auth と notify の補強アサーションも通ること）
 
 Run: `npm run typecheck`
 Expected: エラーなし
@@ -2905,7 +2954,7 @@ Cloudflare Workers + Hono + D1 で動作します。
 - [ ] **Step 6: 最終確認とコミット**
 
 Run: `npm test`
-Expected: PASS（85件）
+Expected: PASS（86件）
 
 Run: `npm run typecheck`
 Expected: エラーなし
