@@ -12,7 +12,8 @@ const OK_MESSAGES: Record<string, string> = {
 };
 
 const ERROR_MESSAGES: Record<string, string> = {
-  invalid: '入力内容に誤りがあります（名前・正しいメールアドレス・種別が必要です）'
+  invalid: '入力内容に誤りがあります（名前・正しいメールアドレス・種別が必要です）',
+  notfound: '対象の会員が見つかりません'
 };
 
 function isValidType(v: unknown): v is MemberType {
@@ -207,11 +208,12 @@ members.post('/:id', async (c) => {
     return c.redirect(`/admin/members/${id}/edit?error=invalid`);
   }
 
-  await c.env.DB.prepare(
+  const res = await c.env.DB.prepare(
     `UPDATE members SET name = ?, email = ?, member_type = ?, is_active = ? WHERE id = ?`
   )
     .bind(name, email, memberType, isActive, id)
     .run();
+  if (res.meta.changes === 0) return c.redirect('/admin/members?error=notfound');
 
   return c.redirect('/admin/members?ok=updated');
 });
@@ -220,7 +222,8 @@ members.post('/:id/reissue', async (c) => {
   const id = parsePositiveInt(c.req.param('id'));
   if (id === null) return c.redirect('/admin/members');
 
-  await c.env.DB.prepare(`UPDATE members SET token = ? WHERE id = ?`).bind(newMemberToken(), id).run();
+  const res = await c.env.DB.prepare(`UPDATE members SET token = ? WHERE id = ?`).bind(newMemberToken(), id).run();
+  if (res.meta.changes === 0) return c.redirect('/admin/members?error=notfound');
 
   return c.redirect('/admin/members?ok=reissued');
 });

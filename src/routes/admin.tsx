@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { passwordMatches, signSession, verifySession } from '../auth/session';
+import { tooManyFailures, recordFailure, clearFailures } from '../auth/loginRateLimit';
 import type { Bindings } from '../types';
 import { members } from './admin/members';
 import { requests } from './admin/requests';
@@ -48,11 +49,17 @@ export const admin = new Hono<{ Bindings: Bindings }>();
 admin.get('/login', (c) => c.html(<LoginPage error={null} />));
 
 admin.post('/login', async (c) => {
+  const ip = c.req.header('CF-Connecting-IP') ?? 'unknown';
+  if (await tooManyFailures(c.env.DB, ip)) {
+    return c.html(<LoginPage error="試行回数が多すぎます。しばらくしてからお試しください" />, 429);
+  }
   const form = await c.req.parseBody();
   const password = typeof form.password === 'string' ? form.password : '';
   if (!(await passwordMatches(c.env.SESSION_SECRET, password, c.env.ADMIN_PASSWORD))) {
+    await recordFailure(c.env.DB, ip);
     return c.html(<LoginPage error="パスワードが違います" />, 401);
   }
+  await clearFailures(c.env.DB, ip);
   const token = await signSession(c.env.SESSION_SECRET, Date.now() + SESSION_TTL_MS);
   setCookie(c, COOKIE_NAME, token, {
     httpOnly: true,

@@ -36,6 +36,9 @@ describe('admin auth', () => {
     const setCookie = res.headers.get('set-cookie');
     expect(setCookie).toContain('admin_session=');
     expect(setCookie).toContain('HttpOnly');
+    expect(setCookie).toContain('Secure');
+    expect(setCookie).toContain('SameSite=Lax');
+    expect(setCookie).toContain('Max-Age=2592000'); // 30日
     const cookie = setCookie!.split(';')[0];
     const page = await app.request('/admin', { headers: { cookie } }, env);
     // ログイン済みなら /admin/login ではなく承認待ちへ転送される
@@ -48,6 +51,7 @@ describe('admin auth', () => {
     const cookie = res.headers.get('set-cookie')!.split(';')[0];
     const out = await app.request('/admin/logout', { method: 'POST', headers: { cookie } }, env);
     expect(out.status).toBe(302);
+    expect(out.headers.get('location')).toBe('/admin/login');
     // Max-Age=0 のCookieが返る
     expect(out.headers.get('set-cookie')).toContain('Max-Age=0');
   });

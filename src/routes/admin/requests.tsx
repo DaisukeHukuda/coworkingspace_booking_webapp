@@ -101,7 +101,7 @@ requests.get('/', async (c) => {
 
 requests.post('/:id/confirm', async (c) => {
   const idRaw = c.req.param('id');
-  const id = /^\d+$/.test(idRaw) ? Number(idRaw) : null;
+  const id = /^\d{1,9}$/.test(idRaw) ? Number(idRaw) : null;
   if (id === null) return c.redirect('/admin/requests?error=invalid');
 
   const ok = await confirmRequest(c.env.DB, id);
@@ -113,7 +113,7 @@ requests.post('/:id/confirm', async (c) => {
 
 requests.post('/:id/decline', async (c) => {
   const idRaw = c.req.param('id');
-  const id = /^\d+$/.test(idRaw) ? Number(idRaw) : null;
+  const id = /^\d{1,9}$/.test(idRaw) ? Number(idRaw) : null;
   const form = await c.req.parseBody();
   const adminNote = typeof form.admin_note === 'string' ? form.admin_note.trim() : '';
   if (id === null || adminNote.length > NOTE_MAX) return c.redirect('/admin/requests?error=invalid');

@@ -49,6 +49,10 @@ describe('notify', () => {
 
     expect(calls.length).toBe(1);
     expect(calls[0].url).toBe('https://api.resend.com/emails');
+    expect(calls[0].init.method).toBe('POST');
+    const headers = calls[0].init.headers as Record<string, string>;
+    expect(headers.authorization).toBe('Bearer key');
+    expect(headers['content-type']).toBe('application/json');
     const body = JSON.parse(String(calls[0].init.body));
     expect(body.to).toEqual(['staff@example.com']);
     expect(body.subject).toContain('利用リクエスト');
@@ -87,5 +91,22 @@ describe('notify', () => {
       sendRequestNotification(env.DB, { RESEND_API_KEY: 'key' }, id, 'cancelled', 'http://localhost:8787', throwFetcher)
     ).resolves.toBeUndefined();
     expect((await lastLog())!.status).toBe('error');
+  });
+
+  it('declined は会員本人宛に理由付きで送信する', async () => {
+    const id = await seedRequest();
+    await env.DB.prepare(`UPDATE requests SET status = 'declined', admin_note = '満席のため' WHERE id = ?`).bind(id).run();
+    const calls: { init: RequestInit }[] = [];
+    const fetcher = (async (_url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ init: init! });
+      return new Response('{}', { status: 200 });
+    }) as typeof fetch;
+
+    await sendRequestNotification(env.DB, { RESEND_API_KEY: 'key' }, id, 'declined', 'http://localhost:8787', fetcher);
+
+    const body = JSON.parse(String(calls[0].init.body));
+    expect(body.to).toEqual(['member@example.com']);
+    expect(body.subject).toContain('リクエストについて');
+    expect(body.text).toContain('満席のため');
   });
 });
