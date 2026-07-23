@@ -2634,7 +2634,7 @@ import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { adminCookie } from './helpers';
 
-function loginAs(ip: string, password: string): Promise<Response> {
+async function loginAs(ip: string, password: string): Promise<Response> {
   return app.request('/admin/login', {
     method: 'POST',
     headers: {
