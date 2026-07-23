@@ -1,4 +1,4 @@
-// ステップ①の最小スタイル。会員向けUIの本格的なデザインはステップ②で行う
+// ステップ②: カレンダー・状態バッジ・会員ページ用のスタイルを追加
 export const STYLE_CSS = `
 *, *::before, *::after { box-sizing: border-box; }
 body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif; color: #1a2233; background: #f4f4ef; }
@@ -26,6 +26,7 @@ h2 { font-size: 18px; margin: 32px 0 12px; }
 .check { font-size: 14px; }
 .btn { display: inline-block; padding: 7px 14px; border: 1px solid #1a2a4a; border-radius: 6px; background: #fff; color: #1a2a4a; font-size: 14px; cursor: pointer; text-decoration: none; }
 .btn-primary { background: #1a2a4a; color: #fff; }
+.btn-danger { border-color: #8f1f1f; color: #8f1f1f; }
 .btn-sm { padding: 4px 10px; font-size: 13px; }
 .btn-lg { padding: 10px 18px; font-size: 16px; }
 .btn-block { width: 100%; }
@@ -40,6 +41,10 @@ h2 { font-size: 18px; margin: 32px 0 12px; }
 .badge-ticket { background: #fdeacc; color: #7a4b12; }
 .badge-on { background: #dcf2e0; color: #1c6b34; }
 .badge-off { background: #fbdddd; color: #8f1f1f; }
+.badge-pending { background: #fdeacc; color: #7a4b12; }
+.badge-confirmed { background: #dcf2e0; color: #1c6b34; }
+.badge-declined { background: #fbdddd; color: #8f1f1f; }
+.badge-cancelled { background: #e8e8df; color: #565f75; }
 .copy-link input { width: 100%; min-width: 260px; font-size: 12px; padding: 4px 6px; border: 1px solid #c6c6bb; border-radius: 4px; color: #565f75; }
 .msg-ok { background: #dcf2e0; color: #1c6b34; padding: 10px 14px; border-radius: 8px; }
 .msg-error { background: #fbdddd; color: #8f1f1f; padding: 10px 14px; border-radius: 8px; }
@@ -48,5 +53,20 @@ h2 { font-size: 18px; margin: 32px 0 12px; }
 .actions form { display: inline; }
 .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
 .login-card { width: 100%; max-width: 360px; background: #fff; border: 1px solid #dcdcd2; border-radius: 12px; padding: 32px 28px; text-align: center; }
-.member-wrap { max-width: 560px; margin: 0 auto; padding: 24px 16px 64px; }
+.member-wrap { max-width: 640px; margin: 0 auto; padding: 24px 16px 64px; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.cal-head h2 { margin: 0; }
+.cal { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #dcdcd2; border-radius: 10px; overflow: hidden; }
+.cal th { padding: 6px 0; font-size: 12px; color: #565f75; background: #f8f8f3; text-align: center; }
+.cal th.sun, .cal td.sun .day-num { color: #b0453a; }
+.cal th.sat, .cal td.sat .day-num { color: #1a5f9e; }
+.cal td { border: 1px solid #ecece4; height: 52px; width: 14.28%; vertical-align: top; padding: 0; text-align: center; }
+.cal td a, .cal td .day-off { display: block; height: 100%; padding: 6px 4px; text-decoration: none; color: inherit; font-size: 13px; }
+.cal td a:hover { background: #eef2fa; }
+.cal td.selected a { background: #1a2a4a; color: #fff; }
+.cal td .day-off { color: #b8b8ad; }
+.cal td .mark { display: block; font-size: 10px; margin-top: 2px; }
+.slot-list { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.slot-row { display: flex; align-items: center; gap: 10px; font-size: 15px; }
+.req-when { font-weight: 700; }
 `;

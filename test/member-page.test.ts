@@ -24,7 +24,7 @@ describe('member page', () => {
     const html = await res.text();
     expect(html).toContain('会員テスト');
     expect(html).toContain('月額会員');
-    expect(html).toContain('準備中');
+    expect(html).toContain('あなたのリクエスト');
   });
 
   it('存在しないトークンは404で案内ページ', async () => {
