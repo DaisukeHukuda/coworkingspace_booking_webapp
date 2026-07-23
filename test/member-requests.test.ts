@@ -36,6 +36,10 @@ describe('member requests', () => {
     expect(html).toContain(`${ty}年${Number(tm)}月`); // 例: 2026年7月（先頭ゼロなし）
     expect(html).toContain('10:00〜13:00');
     expect(html).toContain('リクエスト送信');
+
+    // 不正な月パラメータは無視して当月にフォールバックする
+    const badMonth = await app.request(`/m/${token}?month=2026-99`, {}, env);
+    expect(badMonth.status).toBe(200);
   });
 
   it('リクエスト送信で申請中になり、スタッフ通知が記録される', async () => {
@@ -72,6 +76,7 @@ describe('member requests', () => {
     expect((await postRequest(token, { date: addDays(currentJstDate(), 120), start: '10:00', note: '' })).headers.get('location')).toContain('error=invalid');
     expect((await postRequest(token, { date: target, start: '09:59', note: '' })).headers.get('location')).toContain('error=invalid');
     expect((await postRequest(token, { date: target, start: '10:00', note: 'あ'.repeat(501) })).headers.get('location')).toContain('error=invalid');
+    expect((await postRequest(token, { date: `${monthOf(target)}-32`, start: '10:00', note: '' })).headers.get('location')).toContain('error=invalid'); // 窓内相当だが暦に存在しない日付
   });
 
   it('受付停止日にはリクエストできず、カレンダーにも停止と表示される', async () => {

@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Bindings } from '../../types';
-import { DATE_RE, currentJstDate, formatMD, WEEKDAY_LABELS } from '../../core/dates';
+import { isValidDate, currentJstDate, formatMD, WEEKDAY_LABELS } from '../../core/dates';
 import { Layout } from './ui';
 
 export const closed = new Hono<{ Bindings: Bindings }>();
@@ -92,7 +92,7 @@ closed.post('/', async (c) => {
   const date = typeof form.date === 'string' ? form.date : '';
   const reason = typeof form.reason === 'string' ? form.reason.trim().slice(0, 200) : '';
 
-  if (!DATE_RE.test(date)) return c.redirect('/admin/closed?error=invalid');
+  if (!isValidDate(date)) return c.redirect('/admin/closed?error=invalid');
 
   await c.env.DB.prepare('INSERT OR REPLACE INTO closed_dates (date, reason) VALUES (?, ?)').bind(date, reason).run();
   return c.redirect('/admin/closed?ok=saved');
@@ -100,7 +100,7 @@ closed.post('/', async (c) => {
 
 closed.post('/:date/delete', async (c) => {
   const date = c.req.param('date');
-  if (!DATE_RE.test(date)) return c.redirect('/admin/closed?error=invalid');
+  if (!isValidDate(date)) return c.redirect('/admin/closed?error=invalid');
 
   await c.env.DB.prepare('DELETE FROM closed_dates WHERE date = ?').bind(date).run();
   return c.redirect('/admin/closed?ok=deleted');

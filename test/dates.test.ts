@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DATE_RE, currentJstDate, addDays, clampDate, formatMD, monthOf, addMonths, buildMonthGrid } from '../src/core/dates';
+import { DATE_RE, currentJstDate, addDays, clampDate, formatMD, monthOf, addMonths, buildMonthGrid, isValidDate, isValidMonth } from '../src/core/dates';
 
 describe('dates', () => {
   it('currentJstDate は YYYY-MM-DD を返す', () => {
@@ -38,5 +38,16 @@ describe('dates', () => {
     expect(days.length).toBe(31);
     expect(days[0]).toBe('2026-07-01');
     expect(days[30]).toBe('2026-07-31');
+  });
+
+  it('isValidDate は暦に存在しない日付を弾き、isValidMonth は月の範囲を検証する', () => {
+    expect(isValidDate('2026-08-31')).toBe(true);
+    expect(isValidDate('2026-08-32')).toBe(false);
+    expect(isValidDate('2026-02-30')).toBe(false);
+    expect(isValidDate('2028-02-29')).toBe(true); // うるう年
+    expect(isValidDate('2026/08/31')).toBe(false);
+    expect(isValidMonth('2026-12')).toBe(true);
+    expect(isValidMonth('2026-99')).toBe(false);
+    expect(isValidMonth('2026-00')).toBe(false);
   });
 });

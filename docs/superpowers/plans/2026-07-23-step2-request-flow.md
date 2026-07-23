@@ -2986,3 +2986,16 @@ npm run dev
 - Resend の実送信はステップ②のコードでは RESEND_API_KEY が設定されている場合のみ発生する。ローカル検証では未設定のまま email_log の記録で確認する
 - `requests.tsx` は member.tsx から `REQUEST_STATUS_LABELS` / `REQUEST_BADGE_CLASSES` を import する（ラベル定義の二重化を避けるため）。循環importにはならない（member.tsx は admin 配下を import するが requests.tsx は member.tsx のみ参照…ではなく、member.tsx が `./admin/ui` を、requests.tsx が `../member` を参照する一方向×2本で循環しない）
 - テストは実行日に依存しないよう、利用日は常に `addDays(currentJstDate(), n)` で生成する（Task 5・6）。固定日付を使うのは過去日不要のテーブル直INSERT（Task 1・3・7・8）のみ
+
+---
+
+## マージ前fast-follow修正（最終レビューM-1: 暦妥当性チェック）
+
+最終レビューの指摘: `DATE_RE` は形式のみで `2026-08-32`・`2026-02-30` が通り、`?month=2026-99` が月グリッドを壊しうる。対応:
+
+- `src/core/dates.ts` に追加:
+  - `isValidDate(date)`: DATE_RE ＋ `Date.parse` が NaN でない ＋ ISO往復一致（V8は暦不正のISOをNaNにする）
+  - `isValidMonth(month)`: `/^\d{4}-\d{2}$/` ＋ 月が01〜12
+- `src/routes/member.tsx`: GETの `selectedDate` 判定・`month` 判定、POSTの日付検証を `isValidDate`/`isValidMonth` に置換
+- `src/routes/admin/closed.tsx`: 追加POST・削除POSTの日付検証を `isValidDate` に置換
+- テスト: dates.test.ts に isValidDate/isValidMonth の1ケース追加（累計87件）。member-requests.test.ts の invalid ケースに「窓内だが暦不正の日付」、カレンダーテストに `?month=2026-99` フォールバックの検証を追記

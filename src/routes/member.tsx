@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Child } from 'hono/jsx';
 import type { Bindings, MemberRow, RequestRow, RequestStatus } from '../types';
 import { TYPE_LABELS, TYPE_BADGE_CLASSES } from './admin/ui';
-import { DATE_RE, WEEKDAY_LABELS, currentJstDate, addDays, monthOf, addMonths, buildMonthGrid, formatMD } from '../core/dates';
+import { WEEKDAY_LABELS, currentJstDate, addDays, monthOf, addMonths, buildMonthGrid, formatMD, isValidDate, isValidMonth } from '../core/dates';
 import { getSettings, findSlot } from '../core/settings';
 import { createRequest, cancelRequestByMember } from '../core/requests';
 import { sendRequestNotification } from '../core/notify';
@@ -83,11 +83,11 @@ member.get('/:token', async (c) => {
   const monthParam = c.req.query('month');
   const dateParam = c.req.query('date');
   const selectedDate =
-    dateParam && DATE_RE.test(dateParam) && dateParam >= today && dateParam <= maxDate ? dateParam : null;
+    dateParam && isValidDate(dateParam) && dateParam >= today && dateParam <= maxDate ? dateParam : null;
 
   const minMonth = monthOf(today);
   const maxMonth = monthOf(maxDate);
-  let month = monthParam && /^\d{4}-\d{2}$/.test(monthParam) ? monthParam : selectedDate ? monthOf(selectedDate) : minMonth;
+  let month = monthParam && isValidMonth(monthParam) ? monthParam : selectedDate ? monthOf(selectedDate) : minMonth;
   if (month < minMonth) month = minMonth;
   if (month > maxMonth) month = maxMonth;
 
@@ -290,8 +290,8 @@ member.post('/:token/requests', async (c) => {
   const maxDate = addDays(today, settings.windowDays);
   const slot = findSlot(settings.slots, start);
 
-  if (!DATE_RE.test(date) || date < today || date > maxDate || slot === null || note.length > NOTE_MAX) {
-    return c.redirect(`/m/${token}?date=${DATE_RE.test(date) ? date : ''}&error=invalid`);
+  if (!isValidDate(date) || date < today || date > maxDate || slot === null || note.length > NOTE_MAX) {
+    return c.redirect(`/m/${token}?date=${isValidDate(date) ? date : ''}&error=invalid`);
   }
 
   const closed = await c.env.DB.prepare('SELECT date FROM closed_dates WHERE date = ?').bind(date).first();

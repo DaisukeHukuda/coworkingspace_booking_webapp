@@ -45,3 +45,18 @@ export function buildMonthGrid(month: string): (string | null)[][] {
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
   return weeks;
 }
+
+// 形式だけでなく暦としても実在する日付か（例: 2026-08-32 や 2026-02-30 を弾く）。
+// V8は暦に存在しないISO日付をNaNにするが、往復一致も確認して確実にする
+export function isValidDate(date: string): boolean {
+  if (!DATE_RE.test(date)) return false;
+  const t = Date.parse(`${date}T00:00:00Z`);
+  if (Number.isNaN(t)) return false;
+  return new Date(t).toISOString().slice(0, 10) === date;
+}
+
+export function isValidMonth(month: string): boolean {
+  if (!/^\d{4}-\d{2}$/.test(month)) return false;
+  const m = Number(month.slice(5, 7));
+  return m >= 1 && m <= 12;
+}
