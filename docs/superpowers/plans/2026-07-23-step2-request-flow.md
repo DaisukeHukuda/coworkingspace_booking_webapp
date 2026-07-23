@@ -285,10 +285,18 @@ describe('settings', () => {
     expect(s.windowDays).toBe(30);
   });
 
-  it('slots が壊れたJSONでもデフォルトにフォールバックする', async () => {
+  it('slots が壊れた値（不正JSON・空配列・不正な時刻）でもデフォルトにフォールバックする', async () => {
     await setSetting(env.DB, 'slots', '{broken');
-    const s = await getSettings(env.DB);
-    expect(s.slots).toEqual(DEFAULT_SLOTS);
+    expect((await getSettings(env.DB)).slots).toEqual(DEFAULT_SLOTS);
+
+    await setSetting(env.DB, 'slots', '[]'); // 枠ゼロは無効
+    expect((await getSettings(env.DB)).slots).toEqual(DEFAULT_SLOTS);
+
+    await setSetting(env.DB, 'slots', '[{"start":"zz","end":"99:99"}]'); // 時刻形式不正
+    expect((await getSettings(env.DB)).slots).toEqual(DEFAULT_SLOTS);
+
+    await setSetting(env.DB, 'slots', '[{"start":"13:00","end":"10:00"}]'); // 開始>=終了
+    expect((await getSettings(env.DB)).slots).toEqual(DEFAULT_SLOTS);
   });
 
   it('parseSlotsText は「HH:MM-HH:MM」の行を受け付ける', () => {
@@ -410,7 +418,18 @@ export async function getSettings(db: D1Database): Promise<AppSettings> {
   if (slotsRaw) {
     try {
       const parsed = JSON.parse(slotsRaw);
-      if (Array.isArray(parsed) && parsed.every((s) => typeof s?.start === 'string' && typeof s?.end === 'string')) {
+      // 形だけでなくドメイン条件（時刻形式・開始<終了・1件以上）も検証する。
+      // 保存経路は parseSlotsText で検証するが、DB直接編集等で壊れた値が入っても
+      // 「壊れた設定値はデフォルトにフォールバック」の制約を守るための多層防御
+      if (
+        Array.isArray(parsed) &&
+        parsed.length > 0 &&
+        parsed.every(
+          (s) =>
+            typeof s?.start === 'string' && typeof s?.end === 'string' &&
+            TIME_RE.test(s.start) && TIME_RE.test(s.end) && s.start < s.end
+        )
+      ) {
         slots = parsed;
       }
     } catch {

@@ -27,7 +27,18 @@ export async function getSettings(db: D1Database): Promise<AppSettings> {
   if (slotsRaw) {
     try {
       const parsed = JSON.parse(slotsRaw);
-      if (Array.isArray(parsed) && parsed.every((s) => typeof s?.start === 'string' && typeof s?.end === 'string')) {
+      // 形だけでなくドメイン条件（時刻形式・開始<終了・1件以上）も検証する。
+      // 保存経路は parseSlotsText で検証するが、DB直接編集等で壊れた値が入っても
+      // 「壊れた設定値はデフォルトにフォールバック」の制約を守るための多層防御
+      if (
+        Array.isArray(parsed) &&
+        parsed.length > 0 &&
+        parsed.every(
+          (s) =>
+            typeof s?.start === 'string' && typeof s?.end === 'string' &&
+            TIME_RE.test(s.start) && TIME_RE.test(s.end) && s.start < s.end
+        )
+      ) {
         slots = parsed;
       }
     } catch {

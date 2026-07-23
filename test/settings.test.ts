@@ -18,10 +18,18 @@ describe('settings', () => {
     expect(s.windowDays).toBe(30);
   });
 
-  it('slots が壊れたJSONでもデフォルトにフォールバックする', async () => {
+  it('slots が壊れた値（不正JSON・空配列・不正な時刻）でもデフォルトにフォールバックする', async () => {
     await setSetting(env.DB, 'slots', '{broken');
-    const s = await getSettings(env.DB);
-    expect(s.slots).toEqual(DEFAULT_SLOTS);
+    expect((await getSettings(env.DB)).slots).toEqual(DEFAULT_SLOTS);
+
+    await setSetting(env.DB, 'slots', '[]'); // 枠ゼロは無効
+    expect((await getSettings(env.DB)).slots).toEqual(DEFAULT_SLOTS);
+
+    await setSetting(env.DB, 'slots', '[{"start":"zz","end":"99:99"}]'); // 時刻形式不正
+    expect((await getSettings(env.DB)).slots).toEqual(DEFAULT_SLOTS);
+
+    await setSetting(env.DB, 'slots', '[{"start":"13:00","end":"10:00"}]'); // 開始>=終了
+    expect((await getSettings(env.DB)).slots).toEqual(DEFAULT_SLOTS);
   });
 
   it('parseSlotsText は「HH:MM-HH:MM」の行を受け付ける', () => {
