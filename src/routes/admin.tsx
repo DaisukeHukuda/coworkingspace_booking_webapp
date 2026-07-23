@@ -4,6 +4,8 @@ import { passwordMatches, signSession, verifySession } from '../auth/session';
 import type { Bindings } from '../types';
 import { members } from './admin/members';
 import { requests } from './admin/requests';
+import { closed } from './admin/closed';
+import { settingsPage } from './admin/settings';
 
 const COOKIE_NAME = 'admin_session';
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30日
@@ -77,6 +79,8 @@ admin.use('*', async (c, next) => {
 
 admin.route('/members', members);
 admin.route('/requests', requests);
+admin.route('/closed', closed);
+admin.route('/settings', settingsPage);
 
 // 承認待ちが最優先画面。設計書 §5.2
 admin.get('/', (c) => c.redirect('/admin/requests'));
