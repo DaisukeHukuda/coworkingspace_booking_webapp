@@ -93,16 +93,20 @@ member.get('/:token', async (c) => {
 
   const monthStart = `${month}-01`;
   const monthEnd = addDays(`${addMonths(month, 1)}-01`, -1);
-  const [closedResult, requestsResult] = await Promise.all([
+  const [closedResult, requestsResult, selectedClosedRow] = await Promise.all([
     c.env.DB.prepare('SELECT date FROM closed_dates WHERE date >= ? AND date <= ?')
       .bind(monthStart, monthEnd).all<{ date: string }>(),
     c.env.DB.prepare('SELECT * FROM requests WHERE member_id = ? ORDER BY date DESC, start_time DESC, id DESC LIMIT 50')
-      .bind(m.id).all<RequestRow>()
+      .bind(m.id).all<RequestRow>(),
+    // 選択日の停止判定は表示中の月に依存させない（?month=別月&date=停止日 の組み合わせ対策）
+    selectedDate !== null
+      ? c.env.DB.prepare('SELECT date FROM closed_dates WHERE date = ?').bind(selectedDate).first<{ date: string }>()
+      : Promise.resolve(null)
   ]);
   const closedSet = new Set(closedResult.results.map((r) => r.date));
   const myRequests = requestsResult.results;
 
-  const selectedClosed = selectedDate !== null && closedSet.has(selectedDate);
+  const selectedClosed = selectedClosedRow !== null;
   const grid = buildMonthGrid(month);
   const prevMonth = addMonths(month, -1);
   const nextMonth = addMonths(month, 1);
@@ -183,6 +187,10 @@ member.get('/:token', async (c) => {
         </tbody>
       </table>
       <p class="muted small">日付を選ぶと時間枠を選べます（{formatMD(today)}〜{formatMD(maxDate)} 受付）</p>
+
+      {selectedDate && selectedClosed && (
+        <p class="msg-error">{formatMD(selectedDate)} は受付を停止しています。別の日をお選びください。</p>
+      )}
 
       {selectedDate && !selectedClosed && (
         <>
@@ -309,7 +317,7 @@ member.post('/:token/requests/:id/cancel', async (c) => {
   if (!m) return c.html(<InvalidTokenPage />, 404);
 
   const idRaw = c.req.param('id');
-  const id = /^\d+$/.test(idRaw) ? Number(idRaw) : null;
+  const id = /^\d{1,9}$/.test(idRaw) ? Number(idRaw) : null;
   const ok = id !== null && (await cancelRequestByMember(c.env.DB, id, m.id));
   if (ok && id !== null) {
     const origin = new URL(c.req.url).origin;

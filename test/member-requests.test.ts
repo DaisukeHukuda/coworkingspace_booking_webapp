@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { adminCookie } from './helpers';
-import { currentJstDate, addDays, monthOf } from '../src/core/dates';
+import { currentJstDate, addDays, monthOf, addMonths } from '../src/core/dates';
 
 async function createMember(name: string): Promise<{ id: number; token: string }> {
   const cookie = await adminCookie();
@@ -84,6 +84,12 @@ describe('member requests', () => {
 
     const page = await app.request(`/m/${token}?month=${monthOf(closed)}`, {}, env);
     expect(await page.text()).toContain('停');
+
+    // 表示月が別でも選択日の停止判定は独立している（?month と ?date の組み合わせ対策）
+    const cross = await app.request(`/m/${token}?month=${addMonths(monthOf(closed), 1)}&date=${closed}`, {}, env);
+    const crossHtml = await cross.text();
+    expect(crossHtml).toContain('受付を停止しています');
+    expect(crossHtml).not.toContain('リクエスト送信');
   });
 
   it('本人はキャンセルでき、スタッフ通知が記録される', async () => {
