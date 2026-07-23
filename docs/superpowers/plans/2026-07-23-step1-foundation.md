@@ -6,7 +6,7 @@
 
 **Architecture:** Cloudflare Workers 上の単一 Hono アプリ。サーバーレンダリング（hono/jsx）のみでクライアントJSなし。データは D1（SQLite）。管理画面は `ADMIN_PASSWORD` ＋ HMAC署名Cookieセッション、会員ページは URL トークン（40桁hex）で認証。実装パターンはすべて `Projects/booking-system`（Sup!Sup!予約管理）で実証済みのものを踏襲する。
 
-**Tech Stack:** Hono ^4.12.28 / Cloudflare Workers (wrangler ^4.107.0) / D1 / vitest ~3.2.0 + @cloudflare/vitest-pool-workers ^0.12.21 / TypeScript ^6.0.3 (strict)
+**Tech Stack:** Hono 4.12.28 / Cloudflare Workers (wrangler 4.107.0) / D1 / vitest 3.2.7 + @cloudflare/vitest-pool-workers 0.12.21 / TypeScript 6.0.3 (strict) — バージョン完全固定（Task 1参照）
 
 ## Global Constraints
 
@@ -19,7 +19,8 @@
 - 各タスク完了時: `npm test` と `npm run typecheck` が全部通ってからコミット
 - コミットメッセージは `feat:` / `docs:` / `chore:` プレフィックス＋日本語（booking-system の慣習）
 - トークンやパスワードを `console.log` に出さない（設計書 §10）
-- 作業ディレクトリ: `Projects/torch-member-booking/`（git初期化済み・設計書コミット済み）。パスに全角括弧とスペースを含むため bash では必ずダブルクオートで囲む
+- 作業ディレクトリ: `/Users/daisukefukuda/Projects/coworkingspace_booking_webapp/`（git初期化済み）。旧位置 `Claude/Projects/coworkingspace_booking_webapp` は実体へのシンボリックリンク。**必ず実体パスで作業すること** — 記号入りの旧実パスで `npm test` を実行すると Workers ランタイムのモジュール解決が壊れる（検証済み: クリーンパスでは booking-system の169テスト全通過、記号入りパスでは起動失敗）
+- テスト名は日本語でよい（booking-system 踏襲）。その際 miniflare が `MF-Vitest-Source` ヘッダの非ASCII警告を stderr に出すのは既知の無害な挙動（booking-system でも同様に出る）で、テスト成否には影響しない
 
 ---
 
@@ -58,17 +59,19 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "hono": "^4.12.28"
+    "hono": "4.12.28"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.12.21",
-    "@cloudflare/workers-types": "^4.20260702.1",
-    "typescript": "^6.0.3",
-    "vitest": "~3.2.0",
-    "wrangler": "^4.107.0"
+    "@cloudflare/vitest-pool-workers": "0.12.21",
+    "@cloudflare/workers-types": "4.20260702.1",
+    "typescript": "6.0.3",
+    "vitest": "3.2.7",
+    "wrangler": "4.107.0"
   }
 }
 ```
+
+バージョンはすべて**完全固定**（`^`/`~`なし）。booking-system の package-lock.json で実際に動いている組み合わせと同一。範囲指定にすると wrangler 4.113.0 等の新しい版が入り、vitest-pool-workers との不整合で `Failed to import "cloudflare:test-internal"` が発生することを確認済み。`npm install` に `--legacy-peer-deps` は**使用禁止**（依存不整合を隠して壊れたツリーを作る）。インストールに失敗する場合はエラー全文を報告すること。
 
 `tsconfig.json`:
 
