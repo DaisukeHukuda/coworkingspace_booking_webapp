@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { passwordMatches, signSession, verifySession } from '../auth/session';
 import type { Bindings } from '../types';
+import { members } from './admin/members';
 
 const COOKIE_NAME = 'admin_session';
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30日
@@ -72,6 +73,8 @@ admin.use('*', async (c, next) => {
   }
   await next();
 });
+
+admin.route('/members', members);
 
 // トップは会員管理へ転送（/members のマウントは Task 5 で行う。転送先が未実装でも302自体は返せる）
 admin.get('/', (c) => c.redirect('/admin/members'));
