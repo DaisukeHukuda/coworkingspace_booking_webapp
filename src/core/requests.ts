@@ -11,9 +11,13 @@ export async function createRequest(
        VALUES (?, ?, ?, ?, 'pending', ?, '', ?, ?)`
     ).bind(input.memberId, input.date, input.startTime, input.endTime, input.memberNote, now, now).run();
     return { ok: true, id: res.meta.last_row_id as number };
-  } catch {
-    // 部分UNIQUE（ux_requests_active）違反 = 同一日・同一枠のアクティブなリクエストが既にある
-    return { ok: false, reason: 'duplicate' };
+  } catch (e) {
+    // 部分UNIQUE（ux_requests_active）違反 = 同一日・同一枠のアクティブなリクエストが既にある。
+    // それ以外の失敗（FK違反・一時障害など）を duplicate と誤報告しないよう、UNIQUE違反のみを分類する
+    if (e instanceof Error && e.message.includes('UNIQUE constraint failed')) {
+      return { ok: false, reason: 'duplicate' };
+    }
+    throw e;
   }
 }
 

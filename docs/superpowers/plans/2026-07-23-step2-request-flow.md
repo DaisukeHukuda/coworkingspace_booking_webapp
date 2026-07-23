@@ -20,7 +20,7 @@
 - 会員向け文言はすべて日本語・丁寧語。管理画面は簡潔な日本語。アプリ表示名は「TORCH 会員予約」
 - member_note / admin_note は最大500文字（超過はサーバー側で invalid 扱い）
 - トークン・パスワードを console.log に出さない
-- 各タスク完了時: `npm test` と `npm run typecheck` が全部通ってからコミット。コミットメッセージは `feat:`/`chore:` プレフィックス＋日本語
+- 各タスク完了時: `npm test` と `npm run typecheck` が全部通ってからコミット。コミットメッセージは `feat:`/`fix:`/`chore:` プレフィックス＋日本語
 - テスト名は日本語でよい。`MF-Vitest-Source` 非ASCII警告は既知の無害な挙動
 - 既存テストの修正は Task 6（admin '/' の転送先変更）と Task 9（Cookie属性・ログアウトlocation の補強）で明示されたものだけ。それ以外の既存テストを書き換えない
 
@@ -656,9 +656,13 @@ export async function createRequest(
        VALUES (?, ?, ?, ?, 'pending', ?, '', ?, ?)`
     ).bind(input.memberId, input.date, input.startTime, input.endTime, input.memberNote, now, now).run();
     return { ok: true, id: res.meta.last_row_id as number };
-  } catch {
-    // 部分UNIQUE（ux_requests_active）違反 = 同一日・同一枠のアクティブなリクエストが既にある
-    return { ok: false, reason: 'duplicate' };
+  } catch (e) {
+    // 部分UNIQUE（ux_requests_active）違反 = 同一日・同一枠のアクティブなリクエストが既にある。
+    // それ以外の失敗（FK違反・一時障害など）を duplicate と誤報告しないよう、UNIQUE違反のみを分類する
+    if (e instanceof Error && e.message.includes('UNIQUE constraint failed')) {
+      return { ok: false, reason: 'duplicate' };
+    }
+    throw e;
   }
 }
 
