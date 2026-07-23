@@ -1,7 +1,11 @@
 import type { Child } from 'hono/jsx';
 
 const NAV_ITEMS: { href: string; label: string }[] = [
-  { href: '/admin/members', label: '会員管理' }
+  { href: '/admin/requests', label: '承認待ち' },
+  { href: '/admin/requests/all', label: 'リクエスト一覧' },
+  { href: '/admin/members', label: '会員管理' },
+  { href: '/admin/closed', label: '受付停止日' },
+  { href: '/admin/settings', label: '設定' }
 ];
 
 export const Layout = (props: { title: string; active?: string; children: Child }) => (

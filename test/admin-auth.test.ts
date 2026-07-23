@@ -29,7 +29,7 @@ describe('admin auth', () => {
     expect(res.headers.get('set-cookie')).toBeNull();
   });
 
-  it('正しいパスワードでログインでき、Cookie付きの /admin は会員管理へ転送される', async () => {
+  it('正しいパスワードでログインでき、Cookie付きの /admin は承認待ちへ転送される', async () => {
     const res = await login('test-password'); // vitest.config.ts の ADMIN_PASSWORD
     expect(res.status).toBe(302);
     expect(res.headers.get('location')).toBe('/admin');
@@ -38,9 +38,9 @@ describe('admin auth', () => {
     expect(setCookie).toContain('HttpOnly');
     const cookie = setCookie!.split(';')[0];
     const page = await app.request('/admin', { headers: { cookie } }, env);
-    // ログイン済みなら /admin/login ではなく会員管理へ転送される（/members 自体は Task 5 で実装）
+    // ログイン済みなら /admin/login ではなく承認待ちへ転送される
     expect(page.status).toBe(302);
-    expect(page.headers.get('location')).toBe('/admin/members');
+    expect(page.headers.get('location')).toBe('/admin/requests');
   });
 
   it('ログアウトするとCookieが無効化される', async () => {
