@@ -45,6 +45,7 @@ h2 { font-size: 18px; margin: 32px 0 12px; }
 .badge-confirmed { background: #dcf2e0; color: #1c6b34; }
 .badge-declined { background: #fbdddd; color: #8f1f1f; }
 .badge-cancelled { background: #e8e8df; color: #565f75; }
+.badge-warn { background: #f6d9a8; color: #8a4b12; }
 .copy-link input { width: 100%; min-width: 260px; font-size: 12px; padding: 4px 6px; border: 1px solid #c6c6bb; border-radius: 4px; color: #565f75; }
 .msg-ok { background: #dcf2e0; color: #1c6b34; padding: 10px 14px; border-radius: 8px; }
 .msg-error { background: #fbdddd; color: #8f1f1f; padding: 10px 14px; border-radius: 8px; }

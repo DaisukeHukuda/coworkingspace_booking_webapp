@@ -2,8 +2,10 @@ import { Hono } from 'hono';
 import type { Bindings, MemberType, MemberRow, RequestRow } from '../../types';
 import { confirmRequest, declineRequest } from '../../core/requests';
 import { sendRequestNotification } from '../../core/notify';
+import { getSettings } from '../../core/settings';
+import { getCachedStarts } from '../../core/square';
 import { REQUEST_STATUS_LABELS, REQUEST_BADGE_CLASSES } from '../member';
-import { WEEKDAY_LABELS, formatMD } from '../../core/dates';
+import { formatMD, weekdayOf } from '../../core/dates';
 import { Layout, TYPE_LABELS, TYPE_BADGE_CLASSES } from './ui';
 
 export const requests = new Hono<{ Bindings: Bindings }>();
@@ -25,21 +27,40 @@ export interface RequestWithMember extends RequestRow {
   member_type: MemberType;
 }
 
-function weekdayOf(date: string): string {
-  return WEEKDAY_LABELS[new Date(`${date}T00:00:00Z`).getUTCDay()];
-}
-
 requests.get('/', async (c) => {
   const okParam = c.req.query('ok');
   const errorParam = c.req.query('error');
 
-  const result = await c.env.DB.prepare(
-    `SELECT r.*, m.name AS member_name, m.member_type
-     FROM requests r JOIN members m ON m.id = r.member_id
-     WHERE r.status = 'pending'
-     ORDER BY r.created_at, r.id`
-  ).all<RequestWithMember>();
+  const [result, settings] = await Promise.all([
+    c.env.DB.prepare(
+      `SELECT r.*, m.name AS member_name, m.member_type
+       FROM requests r JOIN members m ON m.id = r.member_id
+       WHERE r.status = 'pending'
+       ORDER BY r.created_at, r.id`
+    ).all<RequestWithMember>(),
+    getSettings(c.env.DB)
+  ]);
   const rows = result.results;
+
+  // 同期有効時のみ: 承認待ちの枠がSquareキャッシュから消えていたら「埋まった可能性」を警告する。
+  // 日付がキャッシュ済み（行あり）なのに開始時刻が含まれない＝Square側で埋まった強いサイン。
+  // 未取得日（行なし）は判断材料が無いので警告しない（将来日への誤警告を避ける）。
+  const cachedByDate = new Map<string, string[]>();
+  if (settings.syncEnabled && rows.length > 0) {
+    let from = rows[0].date;
+    let to = rows[0].date;
+    for (const r of rows) {
+      if (r.date < from) from = r.date;
+      if (r.date > to) to = r.date;
+    }
+    const map = await getCachedStarts(c.env.DB, from, to);
+    for (const [k, v] of map) cachedByDate.set(k, v);
+  }
+  const mayBeTaken = (r: RequestWithMember): boolean => {
+    if (!settings.syncEnabled) return false;
+    const starts = cachedByDate.get(r.date);
+    return starts !== undefined && !starts.includes(r.start_time);
+  };
 
   return c.html(
     <Layout title="承認待ち | TORCH 会員予約" active="/admin/requests">
@@ -69,6 +90,11 @@ requests.get('/', async (c) => {
                 <tr>
                   <td class="req-when">
                     {formatMD(r.date)}（{weekdayOf(r.date)}）{r.start_time}〜{r.end_time}
+                    {mayBeTaken(r) && (
+                      <div>
+                        <span class="badge badge-warn">⚠ Square側で埋まった可能性</span>
+                      </div>
+                    )}
                   </td>
                   <td>
                     {r.member_name}{' '}
