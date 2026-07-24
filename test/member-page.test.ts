@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { env } from 'cloudflare:test';
-import app from '../src/index';
+import { app } from '../src/index';
 import { adminCookie } from './helpers';
 
 async function createMemberAndGetToken(name: string, email: string): Promise<{ id: number; token: string }> {

@@ -6,5 +6,8 @@ declare module 'cloudflare:test' {
     SESSION_SECRET: string;
     RESEND_API_KEY?: string;
     NOTIFY_EMAIL_FROM?: string;
+    APP_ORIGIN?: string;
+    SQUARE_ACCESS_TOKEN?: string;
+    SQUARE_API_BASE?: string;
   }
 }

@@ -2,6 +2,9 @@
   "name": "torch-member-booking",
   "main": "src/index.ts",
   "compatibility_date": "2026-03-10",
+  "triggers": {
+    "crons": ["*/15 * * * *"]
+  },
   "d1_databases": [
     {
       "binding": "DB",

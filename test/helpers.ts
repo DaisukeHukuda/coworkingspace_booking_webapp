@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:test';
-import app from '../src/index';
+import { app } from '../src/index';
 
 export async function adminCookie(): Promise<string> {
   const res = await app.request('/admin/login', {

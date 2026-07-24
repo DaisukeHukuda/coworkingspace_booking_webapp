@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { env } from 'cloudflare:test';
-import app from '../src/index';
+import { app } from '../src/index';
 import { adminCookie } from './helpers';
 
 interface MemberRowInTest {

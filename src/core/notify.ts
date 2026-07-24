@@ -1,10 +1,11 @@
 import { getSettings } from './settings';
 
-export type EmailType = 'requested' | 'cancelled' | 'confirmed' | 'declined';
+export type EmailType = 'requested' | 'cancelled' | 'confirmed' | 'declined' | 'sync_stale';
 
 interface NotifyEnv {
   RESEND_API_KEY?: string;
   NOTIFY_EMAIL_FROM?: string;
+  APP_ORIGIN?: string;
 }
 
 interface RequestInfo {
@@ -44,6 +45,8 @@ export async function sendRequestNotification(
     const { staffEmail } = await getSettings(db);
     const when = `${r.date} ${r.start_time}〜${r.end_time}`;
     const typeLabel = MEMBER_TYPE_LABELS[r.member_type] ?? r.member_type;
+    // ステップ②持ち越し: 本番は APP_ORIGIN を優先し、無ければリクエストoriginを使う
+    const linkBase = env.APP_ORIGIN ?? origin;
 
     let to: string;
     let subject: string;
@@ -60,7 +63,7 @@ export async function sendRequestNotification(
           `日時: ${when}`,
           r.member_note ? `メモ: ${r.member_note}` : '',
           '',
-          `管理画面で確定/否認してください: ${origin}/admin/requests`
+          `管理画面で確定/否認してください: ${linkBase}/admin/requests`
         ];
       } else {
         subject = `【TORCH 会員予約】キャンセル: ${when} ${r.member_name}様`;
@@ -70,7 +73,7 @@ export async function sendRequestNotification(
           `会員: ${r.member_name}様（${typeLabel}）`,
           `日時: ${when}`,
           '',
-          `一覧: ${origin}/admin/requests/all`
+          `一覧: ${linkBase}/admin/requests/all`
         ];
       }
     } else {
@@ -130,6 +133,59 @@ export async function sendRequestNotification(
       }
     } catch (e) {
       await logEmail(db, requestId, to, type, 'error', e instanceof Error ? e.message : String(e));
+    }
+  } catch {
+    // ログ書き込みすら失敗しても呼び出し元には影響させない
+  }
+}
+
+// 同期が24時間以上停止したことをスタッフに知らせる（scheduled から呼ぶ）。
+// リクエストに紐づかない通知なので email_log の request_id は 0 で記録する。絶対に例外を投げない。
+export async function sendSyncStaleNotification(
+  db: D1Database,
+  env: NotifyEnv,
+  origin: string,
+  fetcher: typeof fetch = fetch
+): Promise<void> {
+  try {
+    const { staffEmail } = await getSettings(db);
+    const linkBase = env.APP_ORIGIN ?? origin;
+    const subject = '【TORCH 会員予約】Squareの空き情報の同期が停止しています';
+    const lines = [
+      'Squareからの空き情報の取得が24時間以上できていません。',
+      '会員ページには前回取得時点の空き状況が表示され続けます。',
+      '',
+      'Square側の設定（アクセストークン・ロケーション/サービスID）や通信状況をご確認ください。',
+      linkBase ? `設定画面: ${linkBase}/admin/settings` : '設定画面: /admin/settings'
+    ];
+    const text = lines.join('\n');
+
+    if (!env.RESEND_API_KEY || !staffEmail) {
+      await logEmail(db, 0, staffEmail, 'sync_stale', 'skipped', null); // request_id 0 = リクエスト非依存
+      return;
+    }
+
+    try {
+      const res = await fetcher('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${env.RESEND_API_KEY}`,
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: env.NOTIFY_EMAIL_FROM ?? 'onboarding@resend.dev',
+          to: [staffEmail],
+          subject,
+          text
+        })
+      });
+      if (res.ok) {
+        await logEmail(db, 0, staffEmail, 'sync_stale', 'sent', null);
+      } else {
+        await logEmail(db, 0, staffEmail, 'sync_stale', 'error', `HTTP ${res.status}: ${await res.text()}`);
+      }
+    } catch (e) {
+      await logEmail(db, 0, staffEmail, 'sync_stale', 'error', e instanceof Error ? e.message : String(e));
     }
   } catch {
     // ログ書き込みすら失敗しても呼び出し元には影響させない

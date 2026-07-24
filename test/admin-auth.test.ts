@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { env } from 'cloudflare:test';
-import app from '../src/index';
+import { app } from '../src/index';
 
 async function login(password: string): Promise<Response> {
   return app.request('/admin/login', {

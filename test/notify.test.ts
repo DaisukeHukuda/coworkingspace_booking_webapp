@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { env } from 'cloudflare:test';
-import { sendRequestNotification } from '../src/core/notify';
+import { sendRequestNotification, sendSyncStaleNotification } from '../src/core/notify';
 import { setSetting } from '../src/core/settings';
 
 async function seedRequest(): Promise<number> {
@@ -108,5 +108,42 @@ describe('notify', () => {
     expect(body.to).toEqual(['member@example.com']);
     expect(body.subject).toContain('リクエストについて');
     expect(body.text).toContain('満席のため');
+  });
+
+  it('APP_ORIGIN が設定されていれば管理画面リンクは APP_ORIGIN を使う', async () => {
+    const id = await seedRequest();
+    await setSetting(env.DB, 'staff_email', 'staff@example.com');
+    const calls: { init: RequestInit }[] = [];
+    const fetcher = (async (_url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ init: init! });
+      return new Response('{}', { status: 200 });
+    }) as typeof fetch;
+
+    await sendRequestNotification(
+      env.DB, { RESEND_API_KEY: 'key', APP_ORIGIN: 'https://torch.example' }, id, 'requested', 'http://localhost:8787', fetcher
+    );
+
+    const body = JSON.parse(String(calls[0].init.body));
+    expect(body.text).toContain('https://torch.example/admin/requests');
+    expect(body.text).not.toContain('http://localhost:8787');
+  });
+
+  it('sync_stale はスタッフ宛に送信し request_id 0 で記録する', async () => {
+    await setSetting(env.DB, 'staff_email', 'staff@example.com');
+    const calls: { init: RequestInit }[] = [];
+    const fetcher = (async (_url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ init: init! });
+      return new Response('{}', { status: 200 });
+    }) as typeof fetch;
+
+    await sendSyncStaleNotification(env.DB, { RESEND_API_KEY: 'key', APP_ORIGIN: 'https://torch.example' }, '', fetcher);
+
+    const body = JSON.parse(String(calls[0].init.body));
+    expect(body.to).toEqual(['staff@example.com']);
+    expect(body.subject).toContain('同期が停止');
+    expect(body.text).toContain('https://torch.example/admin/settings');
+    const log = await env.DB.prepare('SELECT request_id, type, status FROM email_log ORDER BY id DESC LIMIT 1')
+      .first<{ request_id: number; type: string; status: string }>();
+    expect(log).toEqual({ request_id: 0, type: 'sync_stale', status: 'sent' });
   });
 });
