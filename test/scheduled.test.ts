@@ -76,4 +76,40 @@ describe('runScheduled', () => {
     const log = await env.DB.prepare("SELECT COUNT(*) AS n FROM email_log WHERE type = 'sync_stale'").first<{ n: number }>();
     expect(log!.n).toBe(0);
   });
+
+  it('24時間以内に sync_stale を記録済みなら再通知しない', async () => {
+    await enableSquare();
+    await setSetting(env.DB, 'staff_email', 'staff@example.com');
+    const oldStamp = new Date(NOW - 30 * 3600_000).toISOString();
+    await env.DB.prepare('INSERT INTO availability_cache (date, slots_json, fetched_at) VALUES (?, ?, ?)')
+      .bind(currentJstDate(), '[]', oldStamp).run();
+    // 12時間前に通知済み
+    await env.DB.prepare(
+      "INSERT INTO email_log (request_id, to_address, type, status, error, created_at) VALUES (0, 'staff@example.com', 'sync_stale', 'sent', NULL, ?)"
+    ).bind(new Date(NOW - 12 * 3600_000).toISOString()).run();
+    const failFetcher = (async () => new Response('boom', { status: 500 })) as typeof fetch;
+
+    await runScheduled(env.DB, { SQUARE_ACCESS_TOKEN: 'tok' }, failFetcher, NOW);
+
+    const log = await env.DB.prepare("SELECT COUNT(*) AS n FROM email_log WHERE type = 'sync_stale'").first<{ n: number }>();
+    expect(log!.n).toBe(1); // 12時間前の1件のまま増えない
+  });
+
+  it('前回の sync_stale から24時間超なら再通知する', async () => {
+    await enableSquare();
+    await setSetting(env.DB, 'staff_email', 'staff@example.com');
+    const oldStamp = new Date(NOW - 30 * 3600_000).toISOString();
+    await env.DB.prepare('INSERT INTO availability_cache (date, slots_json, fetched_at) VALUES (?, ?, ?)')
+      .bind(currentJstDate(), '[]', oldStamp).run();
+    // 30時間前に通知済み（24時間より前）
+    await env.DB.prepare(
+      "INSERT INTO email_log (request_id, to_address, type, status, error, created_at) VALUES (0, 'staff@example.com', 'sync_stale', 'sent', NULL, ?)"
+    ).bind(new Date(NOW - 30 * 3600_000).toISOString()).run();
+    const failFetcher = (async () => new Response('boom', { status: 500 })) as typeof fetch;
+
+    await runScheduled(env.DB, { SQUARE_ACCESS_TOKEN: 'tok' }, failFetcher, NOW);
+
+    const log = await env.DB.prepare("SELECT COUNT(*) AS n FROM email_log WHERE type = 'sync_stale'").first<{ n: number }>();
+    expect(log!.n).toBe(2); // 新たに1件追加される
+  });
 });

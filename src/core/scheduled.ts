@@ -38,7 +38,14 @@ export async function runScheduled(
       const { lastFetched } = await getCacheStatus(db);
       const stale = lastFetched === null || nowMs - Date.parse(lastFetched) > DAY_MS;
       if (stale) {
-        await sendSyncStaleNotification(db, env, env.APP_ORIGIN ?? '', fetcher);
+        // 24時間以内に同じ通知を記録済みなら送らない（障害が続く間、15分ごとに通知が飛ぶのを防ぐ）
+        const notified = await db
+          .prepare(`SELECT id FROM email_log WHERE type = 'sync_stale' AND created_at >= ? LIMIT 1`)
+          .bind(cutoff)
+          .first();
+        if (!notified) {
+          await sendSyncStaleNotification(db, env, env.APP_ORIGIN ?? '', fetcher);
+        }
       }
     }
   } catch {
