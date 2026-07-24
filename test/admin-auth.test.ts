@@ -38,7 +38,7 @@ describe('admin auth', () => {
     expect(setCookie).toContain('HttpOnly');
     expect(setCookie).toContain('Secure');
     expect(setCookie).toContain('SameSite=Lax');
-    expect(setCookie).toContain('Max-Age=2592000'); // 30日
+    expect(setCookie).toContain('Max-Age=34560000'); // 400日（Cookie Max-Ageの上限＝実質自動ログアウトしない）
     const cookie = setCookie!.split(';')[0];
     const page = await app.request('/admin', { headers: { cookie } }, env);
     // ログイン済みなら /admin/login ではなく承認待ちへ転送される

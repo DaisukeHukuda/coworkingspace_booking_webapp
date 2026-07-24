@@ -9,7 +9,8 @@ import { closed } from './admin/closed';
 import { settingsPage } from './admin/settings';
 
 const COOKIE_NAME = 'admin_session';
-const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30日
+// Cookieの有効期限はブラウザ/Hono仕様で最大400日。この上限＝実質「時間経過では自動ログアウトしない」
+const SESSION_TTL_MS = 400 * 24 * 60 * 60 * 1000; // 400日（Cookie Max-Ageの上限）
 
 const LoginPage = (props: { error: string | null }) => (
   <html lang="ja">
