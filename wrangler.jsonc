@@ -9,9 +9,8 @@
     {
       "binding": "DB",
       "database_name": "torch-member-booking",
-      // ローカル開発・テストではこのIDは使われない。初回デプロイ時に
-      // `wrangler d1 create torch-member-booking` の出力IDに差し替えること
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      // 本番D1（2026-07-24 作成、リージョンAPAC）。ローカル開発・テストではこのIDは使われない
+      "database_id": "1999a179-9a46-4551-ad29-4eb5ae24bbc2",
       "migrations_dir": "migrations"
     }
   ]
