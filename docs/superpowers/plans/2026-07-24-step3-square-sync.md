@@ -1089,7 +1089,14 @@ export async function runScheduled(
       const { lastFetched } = await getCacheStatus(db);
       const stale = lastFetched === null || nowMs - Date.parse(lastFetched) > DAY_MS;
       if (stale) {
-        await sendSyncStaleNotification(db, env, env.APP_ORIGIN ?? '', fetcher);
+        // 24時間以内に同じ通知を記録済みなら送らない（障害が続く間、15分ごとに通知が飛ぶのを防ぐ）
+        const notified = await db
+          .prepare(`SELECT id FROM email_log WHERE type = 'sync_stale' AND created_at >= ? LIMIT 1`)
+          .bind(cutoff)
+          .first();
+        if (!notified) {
+          await sendSyncStaleNotification(db, env, env.APP_ORIGIN ?? '', fetcher);
+        }
       }
     }
   } catch {
@@ -1174,7 +1181,7 @@ declare module 'cloudflare:test' {
 - [ ] **Step 5: テストが通ることを確認**
 
 Run: `npm test`
-Expected: PASS（scheduled 5件＋notify 2件を含む累計 **111 件**。named import に切り替えた既存10ファイルも引き続き通ること）
+Expected: PASS（scheduled 5件＋notify 2件を含む累計 **113 件**（stale通知の重複抑制フィックス2件を含む）。named import に切り替えた既存10ファイルも引き続き通ること）
 
 Run: `npm run typecheck`
 Expected: エラーなし
@@ -1696,7 +1703,7 @@ member.post('/:token/requests/:id/cancel', async (c) => {
 - [ ] **Step 4: テストが通ることを確認**
 
 Run: `npm test`
-Expected: PASS（member square 6件を含む累計 **117 件**。既存 member-requests 8件は同期無効のまま通ること — 同期無効時の描画・POSTは変更していない）
+Expected: PASS（member square 6件を含む累計 **119 件**。既存 member-requests 8件は同期無効のまま通ること — 同期無効時の描画・POSTは変更していない）
 
 Run: `npm run typecheck`
 Expected: エラーなし
@@ -2082,7 +2089,7 @@ requests.get('/all', async (c) => {
 - [ ] **Step 4: テストが通ることを確認**
 
 Run: `npm test`
-Expected: PASS（admin requests Square 3件を含む累計 **120 件**。既存 admin-requests 5件・admin-requests-list 4件も同期無効のまま通ること）
+Expected: PASS（admin requests Square 3件を含む累計 **122 件**。既存 admin-requests 5件・admin-requests-list 4件も同期無効のまま通ること）
 
 Run: `npm run typecheck`
 Expected: エラーなし
@@ -2417,7 +2424,7 @@ Square の空き枠をアプリに取り込むための初期設定です。ロ�
 - [ ] **Step 5: テストが通ることを確認**
 
 Run: `npm test`
-Expected: PASS（admin settings Square 4件を含む累計 **124 件**。既存 admin-closed-settings 6件も引き続き通ること — 保存の `saveSettings` バッチ化で挙動は変わらない）
+Expected: PASS（admin settings Square 4件を含む累計 **126 件**。既存 admin-closed-settings 6件も引き続き通ること — 保存の `saveSettings` バッチ化で挙動は変わらない）
 
 Run: `npm run typecheck`
 Expected: エラーなし
@@ -2433,7 +2440,7 @@ git commit -m "feat: 設定画面のSquareセクション（ID入力・同期状
 
 ## 動作確認手順（ステップ③完了後、福田さん向けデモ）
 
-前提: `npm test` が **124件すべて通過**・`npm run typecheck` エラーなし。
+前提: `npm test` が **126件すべて通過**・`npm run typecheck` エラーなし。
 
 ```bash
 npm run dev
