@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DATE_RE, currentJstDate, addDays, clampDate, formatMD, monthOf, addMonths, buildMonthGrid, isValidDate, isValidMonth } from '../src/core/dates';
+import { DATE_RE, currentJstDate, addDays, clampDate, formatMD, monthOf, addMonths, buildMonthGrid, isValidDate, isValidMonth, weekdayOf, formatStampJst } from '../src/core/dates';
 
 describe('dates', () => {
   it('currentJstDate は YYYY-MM-DD を返す', () => {
@@ -49,5 +49,15 @@ describe('dates', () => {
     expect(isValidMonth('2026-12')).toBe(true);
     expect(isValidMonth('2026-99')).toBe(false);
     expect(isValidMonth('2026-00')).toBe(false);
+  });
+
+  it('weekdayOf は日付の曜日ラベルを返す', () => {
+    expect(weekdayOf('2026-07-24')).toBe('金'); // 2026-07-24 は金曜
+    expect(weekdayOf('2026-07-26')).toBe('日');
+  });
+
+  it('formatStampJst は UTC時刻を JST の「M月D日 H時MM分」に整形する', () => {
+    expect(formatStampJst('2026-07-24T00:30:00.000Z')).toBe('7月24日 9時30分'); // UTC 00:30 → JST 09:30
+    expect(formatStampJst('2026-07-24T15:05:00.000Z')).toBe('7月25日 0時05分'); // 日付跨ぎ
   });
 });

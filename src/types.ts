@@ -4,6 +4,9 @@ export type Bindings = {
   SESSION_SECRET: string;
   RESEND_API_KEY?: string;
   NOTIFY_EMAIL_FROM?: string;
+  APP_ORIGIN?: string;         // メール本文の管理画面リンクに使う絶対URL（未設定ならリクエストoriginを使う）
+  SQUARE_ACCESS_TOKEN?: string; // Square Bookings API のアクセストークン（secret）
+  SQUARE_API_BASE?: string;     // Square APIのベースURL（未設定なら https://connect.squareup.com）
 };
 
 export type MemberType = 'monthly' | 'ticket';
@@ -31,4 +34,10 @@ export interface RequestRow {
   admin_note: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface AvailabilityCacheRow {
+  date: string;       // 'YYYY-MM-DD'
+  slots_json: string; // JSON配列文字列（開始時刻 'HH:MM' の配列）
+  fetched_at: string; // ISO文字列（UTC）
 }

@@ -7,7 +7,17 @@ export interface AppSettings {
   slots: Slot[];
   windowDays: number;
   staffEmail: string;
+  squareLocationId: string;
+  squareServiceVariationId: string;
+  syncEnabled: boolean; // squareLocationId と squareServiceVariationId が両方非空なら true
 }
+
+export type SettingKey =
+  | 'slots'
+  | 'window_days'
+  | 'staff_email'
+  | 'square_location_id'
+  | 'square_service_variation_id';
 
 export const DEFAULT_SLOTS: Slot[] = [
   { start: '10:00', end: '13:00' },
@@ -49,13 +59,34 @@ export async function getSettings(db: D1Database): Promise<AppSettings> {
   const windowRaw = Number(map.get('window_days'));
   const windowDays = Number.isInteger(windowRaw) && windowRaw >= 1 && windowRaw <= 365 ? windowRaw : DEFAULT_WINDOW_DAYS;
 
-  return { slots, windowDays, staffEmail: map.get('staff_email') ?? '' };
+  const squareLocationId = (map.get('square_location_id') ?? '').trim();
+  const squareServiceVariationId = (map.get('square_service_variation_id') ?? '').trim();
+  const syncEnabled = squareLocationId !== '' && squareServiceVariationId !== '';
+
+  return {
+    slots,
+    windowDays,
+    staffEmail: map.get('staff_email') ?? '',
+    squareLocationId,
+    squareServiceVariationId,
+    syncEnabled
+  };
 }
 
-export async function setSetting(db: D1Database, key: 'slots' | 'window_days' | 'staff_email', value: string): Promise<void> {
+export async function setSetting(db: D1Database, key: SettingKey, value: string): Promise<void> {
   await db.prepare(
     `INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`
   ).bind(key, value).run();
+}
+
+// 複数の設定キーを1回のD1バッチ（暗黙トランザクション）で保存する。
+// 設定画面の保存で複数キーをまとめて書くのに使う（ステップ②持ち越し: setSetting3連の解消）
+export async function saveSettings(db: D1Database, entries: { key: SettingKey; value: string }[]): Promise<void> {
+  if (entries.length === 0) return;
+  const stmt = db.prepare(
+    `INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+  );
+  await db.batch(entries.map((e) => stmt.bind(e.key, e.value)));
 }
 
 // 1行1枠「HH:MM-HH:MM」。空行・前後空白は無視し、開始時刻順に整列して返す。不正は null

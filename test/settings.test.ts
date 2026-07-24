@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { env } from 'cloudflare:test';
-import { getSettings, setSetting, parseSlotsText, slotsToText, findSlot, DEFAULT_SLOTS } from '../src/core/settings';
+import { getSettings, setSetting, saveSettings, parseSlotsText, slotsToText, findSlot, DEFAULT_SLOTS } from '../src/core/settings';
 
 describe('settings', () => {
   it('シード値を読み出せる', async () => {
@@ -56,5 +56,39 @@ describe('settings', () => {
     expect(slotsToText(DEFAULT_SLOTS)).toBe('10:00-13:00\n13:00-17:00\n17:00-21:00');
     expect(findSlot(DEFAULT_SLOTS, '13:00')).toEqual({ start: '13:00', end: '17:00' });
     expect(findSlot(DEFAULT_SLOTS, '09:00')).toBeNull();
+  });
+
+  it('Square未設定なら syncEnabled は false で ID は空', async () => {
+    const s = await getSettings(env.DB);
+    expect(s.squareLocationId).toBe('');
+    expect(s.squareServiceVariationId).toBe('');
+    expect(s.syncEnabled).toBe(false);
+  });
+
+  it('ロケーションIDとサービスIDが両方あれば syncEnabled は true', async () => {
+    await setSetting(env.DB, 'square_location_id', 'LOC123');
+    await setSetting(env.DB, 'square_service_variation_id', 'SV456');
+    const s = await getSettings(env.DB);
+    expect(s.squareLocationId).toBe('LOC123');
+    expect(s.squareServiceVariationId).toBe('SV456');
+    expect(s.syncEnabled).toBe(true);
+  });
+
+  it('片方だけの設定では syncEnabled は false（無効のまま）', async () => {
+    await setSetting(env.DB, 'square_location_id', 'LOC123');
+    const s = await getSettings(env.DB);
+    expect(s.syncEnabled).toBe(false);
+  });
+
+  it('saveSettings は複数キーを一括保存できる', async () => {
+    await saveSettings(env.DB, [
+      { key: 'staff_email', value: 'batch@example.com' },
+      { key: 'window_days', value: '45' },
+      { key: 'square_location_id', value: 'LOCX' }
+    ]);
+    const s = await getSettings(env.DB);
+    expect(s.staffEmail).toBe('batch@example.com');
+    expect(s.windowDays).toBe(45);
+    expect(s.squareLocationId).toBe('LOCX');
   });
 });

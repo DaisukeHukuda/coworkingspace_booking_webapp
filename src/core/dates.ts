@@ -60,3 +60,14 @@ export function isValidMonth(month: string): boolean {
   const m = Number(month.slice(5, 7));
   return m >= 1 && m <= 12;
 }
+
+// 'YYYY-MM-DD' の曜日ラベル。日付だけなのでUTCで曜日を取れば十分（member.tsx/requests.tsx で共通利用）
+export function weekdayOf(date: string): string {
+  return WEEKDAY_LABELS[new Date(`${date}T00:00:00Z`).getUTCDay()];
+}
+
+// UTCのISO時刻文字列を JST の「M月D日 H時MM分」に整形する（空き情報の取得時刻の表示用）
+export function formatStampJst(iso: string): string {
+  const d = new Date(Date.parse(iso) + 9 * 3600_000);
+  return `${d.getUTCMonth() + 1}月${d.getUTCDate()}日 ${d.getUTCHours()}時${String(d.getUTCMinutes()).padStart(2, '0')}分`;
+}
