@@ -68,6 +68,7 @@ h2 { font-size: 18px; margin: 32px 0 12px; }
 .cal td.selected a { background: #1a2a4a; color: #fff; }
 .cal td .day-off { color: #b8b8ad; }
 .cal td .mark { display: block; font-size: 10px; margin-top: 2px; }
+.cal td .mark-x { font-size: 16px; font-weight: 700; line-height: 1; }
 .slot-list { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
 .slot-row { display: flex; align-items: center; gap: 10px; font-size: 15px; }
 .req-when { font-weight: 700; }

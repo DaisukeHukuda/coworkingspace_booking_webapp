@@ -115,7 +115,7 @@ describe('member page with Square sync', () => {
     const res = await app.request(`/m/${token}?month=${monthOf(target)}`, {}, env);
     const html = await res.text();
     const count = (needle: string) => html.split(needle).length - 1;
-    expect(count('<span class="mark">×</span>')).toBe(1); // ×マークが1つ
+    expect(count('<span class="mark mark-x">×</span>')).toBe(1); // ×マークが1つ
     expect(html).not.toContain(`?date=${target}`);        // ×日は選択リンクなし
     expect(html).toContain('×の日はSquare側の空きがありません'); // 注記
 
@@ -125,6 +125,6 @@ describe('member page with Square sync', () => {
     const html2 = await res2.text();
     const count2 = (needle: string) => html2.split(needle).length - 1;
     expect(count2('<span class="mark">停</span>')).toBe(1);
-    expect(count2('<span class="mark">×</span>')).toBe(0);
+    expect(count2('<span class="mark mark-x">×</span>')).toBe(0);
   });
 });

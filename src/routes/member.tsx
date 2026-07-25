@@ -226,7 +226,7 @@ member.get('/:token', async (c) => {
                     <td class={dowClass.trim() || undefined}>
                       <span class="day-off">
                         {dayNum}
-                        <span class="mark">×</span>
+                        <span class="mark mark-x">×</span>
                         {mark && <span class={`cal-dot dot-${mark}`}></span>}
                       </span>
                     </td>
