@@ -27,14 +27,17 @@ async function postRequest(token: string, body: Record<string, string>): Promise
 const target = addDays(currentJstDate(), 7);
 
 describe('member requests', () => {
-  it('カレンダーに月と時間枠フォームが表示される', async () => {
+  it('カレンダーに月と開始・終了の時間プルダウンが表示される', async () => {
     const { token } = await createMember('カレンダー会員');
     const res = await app.request(`/m/${token}?date=${target}`, {}, env);
     expect(res.status).toBe(200);
     const html = await res.text();
     const [ty, tm] = monthOf(target).split('-');
     expect(html).toContain(`${ty}年${Number(tm)}月`); // 例: 2026年7月（先頭ゼロなし）
-    expect(html).toContain('10:00〜13:00');
+    expect(html).toContain('開始時刻');
+    expect(html).toContain('終了時刻');
+    expect(html).toContain('<option value="10:00">10:00</option>'); // 既定の受付時間帯 10:00〜21:00 の開始側先頭
+    expect(html).toContain('<option value="21:00">21:00</option>'); // 終了側の最終選択肢
     expect(html).toContain('リクエスト送信');
 
     // 不正な月パラメータは無視して当月にフォールバックする
@@ -42,20 +45,22 @@ describe('member requests', () => {
     expect(badMonth.status).toBe(200);
   });
 
-  it('リクエスト送信で申請中になり、スタッフ通知が記録される', async () => {
+  it('リクエスト送信で申請中になり、スタッフ通知と会員宛の受付確認が記録される', async () => {
     const { id, token } = await createMember('送信会員');
-    const res = await postRequest(token, { date: target, start: '10:00', note: '午前利用します' });
+    const res = await postRequest(token, { date: target, start: '10:30', end: '15:00', note: '午前から利用します' });
     expect(res.status).toBe(302);
     expect(res.headers.get('location')).toContain('ok=requested');
 
     const row = await env.DB.prepare('SELECT * FROM requests WHERE member_id = ?').bind(id).first();
     expect(row!.status).toBe('pending');
-    expect(row!.end_time).toBe('13:00'); // テンプレートから補完
-    expect(row!.member_note).toBe('午前利用します');
+    expect(row!.start_time).toBe('10:30');
+    expect(row!.end_time).toBe('15:00'); // 会員が選んだ終了時刻がそのまま入る（テンプレート補完は廃止）
+    expect(row!.member_note).toBe('午前から利用します');
 
-    const log = await env.DB.prepare('SELECT type, status FROM email_log WHERE request_id = ?').bind(row!.id).first();
-    expect(log!.type).toBe('requested');
-    expect(log!.status).toBe('skipped'); // テストではRESEND_API_KEY未設定
+    const logs = await env.DB.prepare('SELECT type, status FROM email_log WHERE request_id = ? ORDER BY id')
+      .bind(row!.id).all<{ type: string; status: string }>();
+    expect(logs.results.map((l) => l.type)).toEqual(['requested', 'requested_member']); // スタッフ宛→会員宛の順
+    expect(logs.results.every((l) => l.status === 'skipped')).toBe(true); // テストではRESEND_API_KEY未設定
 
     const page = await app.request(`/m/${token}`, {}, env);
     const html = await page.text();
@@ -63,20 +68,24 @@ describe('member requests', () => {
     expect(html).toContain('キャンセル');
   });
 
-  it('同じ日・同じ枠の二重リクエストは弾かれる', async () => {
+  it('同じ日・同じ開始時刻の二重リクエストは弾かれる', async () => {
     const { token } = await createMember('重複会員');
-    await postRequest(token, { date: target, start: '10:00', note: '' });
-    const res = await postRequest(token, { date: target, start: '10:00', note: '' });
+    await postRequest(token, { date: target, start: '10:00', end: '13:00', note: '' });
+    const res = await postRequest(token, { date: target, start: '10:00', end: '13:00', note: '' });
     expect(res.headers.get('location')).toContain('error=duplicate');
   });
 
-  it('過去日・期間外・不正な枠・長すぎるメモは invalid', async () => {
+  it('過去日・期間外・30分単位でない/時間帯外/逆転の時間・長すぎるメモは invalid', async () => {
     const { token } = await createMember('不正会員');
-    expect((await postRequest(token, { date: addDays(currentJstDate(), -1), start: '10:00', note: '' })).headers.get('location')).toContain('error=invalid');
-    expect((await postRequest(token, { date: addDays(currentJstDate(), 120), start: '10:00', note: '' })).headers.get('location')).toContain('error=invalid');
-    expect((await postRequest(token, { date: target, start: '09:59', note: '' })).headers.get('location')).toContain('error=invalid');
-    expect((await postRequest(token, { date: target, start: '10:00', note: 'あ'.repeat(501) })).headers.get('location')).toContain('error=invalid');
-    expect((await postRequest(token, { date: `${monthOf(target)}-32`, start: '10:00', note: '' })).headers.get('location')).toContain('error=invalid'); // 窓内相当だが暦に存在しない日付
+    const base = { start: '10:00', end: '13:00', note: '' };
+    expect((await postRequest(token, { date: addDays(currentJstDate(), -1), ...base })).headers.get('location')).toContain('error=invalid');
+    expect((await postRequest(token, { date: addDays(currentJstDate(), 120), ...base })).headers.get('location')).toContain('error=invalid');
+    expect((await postRequest(token, { date: target, start: '10:15', end: '13:00', note: '' })).headers.get('location')).toContain('error=invalid'); // 30分単位でない
+    expect((await postRequest(token, { date: target, start: '09:30', end: '13:00', note: '' })).headers.get('location')).toContain('error=invalid'); // 受付開始前
+    expect((await postRequest(token, { date: target, start: '10:00', end: '21:30', note: '' })).headers.get('location')).toContain('error=invalid'); // 受付終了後
+    expect((await postRequest(token, { date: target, start: '13:00', end: '13:00', note: '' })).headers.get('location')).toContain('error=invalid'); // 開始=終了
+    expect((await postRequest(token, { date: target, start: '10:00', end: '13:00', note: 'あ'.repeat(501) })).headers.get('location')).toContain('error=invalid');
+    expect((await postRequest(token, { date: `${monthOf(target)}-32`, ...base })).headers.get('location')).toContain('error=invalid'); // 窓内相当だが暦に存在しない日付
   });
 
   it('受付停止日にはリクエストできず、カレンダーにも停止と表示される', async () => {
@@ -84,7 +93,7 @@ describe('member requests', () => {
     const closed = addDays(currentJstDate(), 10);
     await env.DB.prepare(`INSERT INTO closed_dates (date, reason) VALUES (?, '臨時休業')`).bind(closed).run();
 
-    const res = await postRequest(token, { date: closed, start: '10:00', note: '' });
+    const res = await postRequest(token, { date: closed, start: '10:00', end: '13:00', note: '' });
     expect(res.headers.get('location')).toContain('error=closed');
 
     const page = await app.request(`/m/${token}?month=${monthOf(closed)}`, {}, env);
@@ -99,7 +108,7 @@ describe('member requests', () => {
 
   it('本人はキャンセルでき、スタッフ通知が記録される', async () => {
     const { id, token } = await createMember('取消会員');
-    await postRequest(token, { date: target, start: '13:00', note: '' });
+    await postRequest(token, { date: target, start: '13:00', end: '17:00', note: '' });
     const row = await env.DB.prepare('SELECT id FROM requests WHERE member_id = ?').bind(id).first<{ id: number }>();
 
     const res = await app.request(`/m/${token}/requests/${row!.id}/cancel`, { method: 'POST' }, env);
@@ -114,7 +123,7 @@ describe('member requests', () => {
   it('他人のリクエストはキャンセルできない', async () => {
     const a = await createMember('会員AA');
     const b = await createMember('会員BB');
-    await postRequest(a.token, { date: target, start: '17:00', note: '' });
+    await postRequest(a.token, { date: target, start: '17:00', end: '19:00', note: '' });
     const row = await env.DB.prepare('SELECT id FROM requests WHERE member_id = ?').bind(a.id).first<{ id: number }>();
 
     const res = await app.request(`/m/${b.token}/requests/${row!.id}/cancel`, { method: 'POST' }, env);
@@ -124,7 +133,7 @@ describe('member requests', () => {
   });
 
   it('無効トークンでのPOSTは404', async () => {
-    const res = await postRequest('f'.repeat(40), { date: target, start: '10:00', note: '' });
+    const res = await postRequest('f'.repeat(40), { date: target, start: '10:00', end: '13:00', note: '' });
     expect(res.status).toBe(404);
   });
 });

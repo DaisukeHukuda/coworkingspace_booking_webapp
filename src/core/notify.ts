@@ -1,6 +1,6 @@
 import { getSettings } from './settings';
 
-export type EmailType = 'requested' | 'cancelled' | 'confirmed' | 'declined' | 'sync_stale';
+export type EmailType = 'requested' | 'requested_member' | 'cancelled' | 'confirmed' | 'declined' | 'sync_stale';
 
 interface NotifyEnv {
   RESEND_API_KEY?: string;
@@ -76,6 +76,20 @@ export async function sendRequestNotification(
           `一覧: ${linkBase}/admin/requests/all`
         ];
       }
+    } else if (type === 'requested_member') {
+      // ステップ⑤(§17.3): 会員本人への受付確認（スタッフ宛 requested とは別に送る）
+      to = r.member_email;
+      subject = `【TORCH】リクエストを受け付けました: ${when}`;
+      lines = [
+        `${r.member_name}様`,
+        '',
+        '以下のご利用リクエストを受け付けました。スタッフが確認のうえ、確定/否認の結果を追ってメールでお知らせします。',
+        '',
+        `日時: ${when}`,
+        r.member_note ? `メモ: ${r.member_note}` : '',
+        '',
+        '変更やキャンセルはご自身の専用ページ、またはLINEでご連絡ください。'
+      ];
     } else {
       to = r.member_email;
       if (type === 'confirmed') {

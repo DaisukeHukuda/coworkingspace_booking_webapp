@@ -6,7 +6,7 @@ import {
   WEEKDAY_LABELS, currentJstDate, addDays, monthOf, addMonths, buildMonthGrid,
   formatMD, isValidDate, isValidMonth, weekdayOf, formatStampJst
 } from '../core/dates';
-import { getSettings, findSlot } from '../core/settings';
+import { getSettings, timeOptions, validTimeRange } from '../core/settings';
 import { getCachedStarts, getCacheStatus } from '../core/square';
 import { createRequest, cancelRequestByMember } from '../core/requests';
 import { sendRequestNotification } from '../core/notify';
@@ -33,10 +33,10 @@ const OK_MESSAGES: Record<string, string> = {
 };
 
 const ERROR_MESSAGES: Record<string, string> = {
-  invalid: '入力内容に誤りがあります。日付と時間枠をご確認ください',
+  invalid: '入力内容に誤りがあります。日付と時間（30分単位・終了は開始より後）をご確認ください',
   closed: 'この日は受付を停止しています',
   duplicate: 'この日時にはすでにリクエスト済みです',
-  unavailable: 'この枠は現在ご案内できません'
+  unavailable: 'この日はSquare側の空きがないため、現在ご案内できません'
 };
 
 const NOTE_MAX = 500;
@@ -130,12 +130,8 @@ member.get('/:token', async (c) => {
   const nextMonth = addMonths(month, 1);
   const [y, mo] = month.split('-');
 
-  // 同期有効時の表示枠 = テンプレートのうちキャッシュに開始時刻が含まれるもの（無効時は全テンプレート）
-  const availableSlots =
-    syncEnabled && selectedCacheStarts !== null
-      ? settings.slots.filter((s) => selectedCacheStarts!.includes(s.start))
-      : [];
-  const formSlots = syncEnabled ? availableSlots : settings.slots;
+  // ステップ⑤(§17.1): 時間枠テンプレートを廃止し、受付時間帯の30分刻みから開始/終了を自由に選ぶ
+  const { starts: startOptions, ends: endOptions } = timeOptions(settings.openStart, settings.openEnd);
 
   const okParam = c.req.query('ok');
   const errorParam = c.req.query('error');
@@ -211,7 +207,7 @@ member.get('/:token', async (c) => {
           ))}
         </tbody>
       </table>
-      <p class="muted small">日付を選ぶと時間枠を選べます（{formatMD(today)}〜{formatMD(maxDate)} 受付）</p>
+      <p class="muted small">日付を選ぶと開始・終了時刻を選べます（{formatMD(today)}〜{formatMD(maxDate)} 受付）</p>
       {syncEnabled && (
         <p class="muted small">
           {lastFetched
@@ -231,21 +227,26 @@ member.get('/:token', async (c) => {
           </h2>
           {syncEnabled && selectedCacheStarts === null ? (
             <p class="muted">この日の空き情報を取得中です。しばらくたってから再度お試しください。</p>
-          ) : syncEnabled && formSlots.length === 0 ? (
-            <p class="muted">この日は空き枠がありません。別の日をお選びください。</p>
+          ) : syncEnabled && selectedCacheStarts !== null && selectedCacheStarts.length === 0 ? (
+            <p class="muted">この日はSquare側で空きがありません。別の日をお選びください。</p>
           ) : (
             <form class="card card-pad" method="post" action={`/m/${token}/requests`}>
               <input type="hidden" name="date" value={selectedDate} />
               <div class="field">
-                <label>時間枠</label>
-                <div class="slot-list">
-                  {formSlots.map((s, i) => (
-                    <label class="slot-row">
-                      <input type="radio" name="start" value={s.start} checked={i === 0} />
-                      {s.start}〜{s.end}
-                    </label>
+                <label>開始時刻</label>
+                <select name="start">
+                  {startOptions.map((t) => (
+                    <option value={t}>{t}</option>
                   ))}
-                </div>
+                </select>
+              </div>
+              <div class="field">
+                <label>終了時刻</label>
+                <select name="end">
+                  {endOptions.map((t) => (
+                    <option value={t}>{t}</option>
+                  ))}
+                </select>
               </div>
               <div class="field">
                 <label>ひとことメモ（任意・人数やご用件など）</label>
@@ -321,25 +322,31 @@ member.post('/:token/requests', async (c) => {
   const form = await c.req.parseBody();
   const date = typeof form.date === 'string' ? form.date : '';
   const start = typeof form.start === 'string' ? form.start : '';
+  const end = typeof form.end === 'string' ? form.end : '';
   const note = typeof form.note === 'string' ? form.note.trim() : '';
 
   const settings = await getSettings(c.env.DB);
   const today = currentJstDate();
   const maxDate = addDays(today, settings.windowDays);
-  const slot = findSlot(settings.slots, start);
 
-  if (!isValidDate(date) || date < today || date > maxDate || slot === null || note.length > NOTE_MAX) {
+  // 30分刻み・受付時間帯内・開始<終了は validTimeRange で一括検証（§17.1）
+  if (
+    !isValidDate(date) || date < today || date > maxDate ||
+    !validTimeRange(start, end, settings.openStart, settings.openEnd) ||
+    note.length > NOTE_MAX
+  ) {
     return c.redirect(`/m/${token}?date=${isValidDate(date) ? date : ''}&error=invalid`);
   }
 
   const closed = await c.env.DB.prepare('SELECT date FROM closed_dates WHERE date = ?').bind(date).first();
   if (closed) return c.redirect(`/m/${token}?error=closed`);
 
-  // 同期有効時のみ、Squareキャッシュにその枠が無ければ受け付けない（無効時は現行どおり素通り）
+  // 同期有効時は日単位で判定: その日の空き開始時刻が1つも無ければ受け付けない（未取得日も同様）。
+  // 枠単位の照合は廃止（席に余裕がある運用・最終判断はスタッフの承認で行う）
   if (settings.syncEnabled) {
     const starts = await getCachedStarts(c.env.DB, date, date);
     const available = starts.get(date);
-    if (!available || !available.includes(slot.start)) {
+    if (available === undefined || available.length === 0) {
       return c.redirect(`/m/${token}?date=${date}&error=unavailable`);
     }
   }
@@ -347,14 +354,16 @@ member.post('/:token/requests', async (c) => {
   const result = await createRequest(c.env.DB, {
     memberId: m.id,
     date,
-    startTime: slot.start,
-    endTime: slot.end,
+    startTime: start,
+    endTime: end,
     memberNote: note
   });
   if (!result.ok) return c.redirect(`/m/${token}?date=${date}&error=duplicate`);
 
+  // スタッフ宛の新規リクエスト通知に加え、会員本人へ受付確認を送る（§17.3。どちらも絶対に例外を投げない）
   const origin = new URL(c.req.url).origin;
   await sendRequestNotification(c.env.DB, c.env, result.id, 'requested', origin);
+  await sendRequestNotification(c.env.DB, c.env, result.id, 'requested_member', origin);
   return c.redirect(`/m/${token}?ok=requested`);
 });
 

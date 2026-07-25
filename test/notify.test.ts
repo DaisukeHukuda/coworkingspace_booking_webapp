@@ -146,4 +146,22 @@ describe('notify', () => {
       .first<{ request_id: number; type: string; status: string }>();
     expect(log).toEqual({ request_id: 0, type: 'sync_stale', status: 'sent' });
   });
+
+  it('requested_member は会員本人宛に受付確認を送信する', async () => {
+    const id = await seedRequest();
+    const calls: { init: RequestInit }[] = [];
+    const fetcher = (async (_url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ init: init! });
+      return new Response('{}', { status: 200 });
+    }) as typeof fetch;
+
+    await sendRequestNotification(env.DB, { RESEND_API_KEY: 'key' }, id, 'requested_member', 'http://localhost:8787', fetcher);
+
+    const body = JSON.parse(String(calls[0].init.body));
+    expect(body.to).toEqual(['member@example.com']);
+    expect(body.subject).toContain('受け付けました');
+    expect(body.text).toContain('2026-08-01 10:00〜13:00');
+    expect(body.text).toContain('メモです');
+    expect(await lastLog()).toEqual({ to_address: 'member@example.com', type: 'requested_member', status: 'sent' });
+  });
 });

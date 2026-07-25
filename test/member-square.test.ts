@@ -38,16 +38,15 @@ async function postRequest(token: string, body: Record<string, string>): Promise
 const target = addDays(currentJstDate(), 5);
 
 describe('member page with Square sync', () => {
-  it('同期有効: キャッシュにある開始時刻の枠だけ表示される', async () => {
+  it('同期有効: 空きが1つでもある日はフォームが出て、時間は受付時間帯から選べる', async () => {
     const { token } = await createMember('同期会員A');
     await enableSync();
-    await seedCache(target, ['13:00']); // 10:00 と 17:00 は空きなし
+    await seedCache(target, ['13:00']); // 空きは1件だけだが日単位判定なのでフォームは出る
     const res = await app.request(`/m/${token}?date=${target}`, {}, env);
     const html = await res.text();
-    expect(html).toContain('13:00〜17:00');
-    expect(html).not.toContain('10:00〜13:00');
-    expect(html).not.toContain('17:00〜21:00');
     expect(html).toContain('リクエスト送信');
+    expect(html).toContain('開始時刻');
+    expect(html).toContain('<option value="10:00">10:00</option>'); // 選択肢はキャッシュに関係なく受付時間帯の全30分刻み
   });
 
   it('同期有効: キャッシュ行が無い日は「取得中」でフォームを出さない', async () => {
@@ -60,13 +59,13 @@ describe('member page with Square sync', () => {
     expect(html).not.toContain('リクエスト送信');
   });
 
-  it('同期有効: キャッシュにあるが空き枠ゼロの日は「空き枠がありません」', async () => {
+  it('同期有効: 空き開始時刻がゼロの日は「Square側で空きがありません」', async () => {
     const { token } = await createMember('同期会員C');
     await enableSync();
     await seedCache(target, []); // 満枠
     const res = await app.request(`/m/${token}?date=${target}`, {}, env);
     const html = await res.text();
-    expect(html).toContain('空き枠がありません');
+    expect(html).toContain('この日はSquare側で空きがありません');
     expect(html).not.toContain('リクエスト送信');
   });
 
@@ -80,25 +79,31 @@ describe('member page with Square sync', () => {
     expect(html).toContain('7月24日 9時30分');
   });
 
-  it('同期有効: キャッシュに無い枠へのPOSTは unavailable', async () => {
+  it('同期有効: 空きゼロの日・未取得の日へのPOSTは unavailable', async () => {
     const { token } = await createMember('同期会員E');
     await enableSync();
-    await seedCache(target, ['13:00']); // 10:00 は空いていない
-    const res = await postRequest(token, { date: target, start: '10:00', note: '' });
+    await seedCache(target, []); // 満枠
+    const res = await postRequest(token, { date: target, start: '10:00', end: '13:00', note: '' });
     expect(res.headers.get('location')).toContain('error=unavailable');
+
+    const unfetched = addDays(target, 1); // キャッシュ未取得の日
+    const res2 = await postRequest(token, { date: unfetched, start: '10:00', end: '13:00', note: '' });
+    expect(res2.headers.get('location')).toContain('error=unavailable');
+
     const count = await env.DB.prepare('SELECT COUNT(*) AS n FROM requests').first<{ n: number }>();
     expect(count!.n).toBe(0);
   });
 
-  it('同期有効: キャッシュにある枠へのPOSTは通常どおり申請できる', async () => {
+  it('同期有効: 空きがある日へのPOSTはキャッシュに無い時間帯でも申請できる（日単位判定）', async () => {
     const { id, token } = await createMember('同期会員F');
     await enableSync();
-    await seedCache(target, ['10:00', '13:00']);
-    const res = await postRequest(token, { date: target, start: '10:00', note: '窓側希望' });
+    await seedCache(target, ['13:00']); // 10:30 の開始時刻はキャッシュに無いが、日に空きがあれば受け付ける
+    const res = await postRequest(token, { date: target, start: '10:30', end: '12:00', note: '窓側希望' });
     expect(res.headers.get('location')).toContain('ok=requested');
-    const row = await env.DB.prepare('SELECT status, end_time FROM requests WHERE member_id = ?')
-      .bind(id).first<{ status: string; end_time: string }>();
+    const row = await env.DB.prepare('SELECT status, start_time, end_time FROM requests WHERE member_id = ?')
+      .bind(id).first<{ status: string; start_time: string; end_time: string }>();
     expect(row!.status).toBe('pending');
-    expect(row!.end_time).toBe('13:00');
+    expect(row!.start_time).toBe('10:30');
+    expect(row!.end_time).toBe('12:00');
   });
 });
