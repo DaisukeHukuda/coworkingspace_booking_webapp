@@ -45,16 +45,17 @@ describe('admin closed dates', () => {
 });
 
 describe('admin settings', () => {
-  it('設定画面に現在値が表示される', async () => {
+  it('設定画面に受付時間帯と現在値が表示される（時間枠テンプレートは廃止）', async () => {
     const cookie = await adminCookie();
     const res = await app.request('/admin/settings', { headers: { cookie } }, env);
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain('10:00-13:00');
+    expect(html).toContain('受付時間帯');
     expect(html).toContain('60');
+    expect(html).not.toContain('時間枠テンプレート');
   });
 
-  it('設定を保存できる', async () => {
+  it('設定を保存できる（受付時間帯は30分単位）', async () => {
     const cookie = await adminCookie();
     const res = await app.request('/admin/settings', {
       method: 'POST',
@@ -62,7 +63,8 @@ describe('admin settings', () => {
       body: new URLSearchParams({
         staff_email: 'staff@example.com',
         window_days: '30',
-        slots_text: '09:00-12:00\n13:00-18:00'
+        open_start: '09:00',
+        open_end: '18:30'
       }).toString()
     }, env);
     expect(res.headers.get('location')).toBe('/admin/settings?ok=saved');
@@ -70,10 +72,8 @@ describe('admin settings', () => {
     const s = await getSettings(env.DB);
     expect(s.staffEmail).toBe('staff@example.com');
     expect(s.windowDays).toBe(30);
-    expect(s.slots).toEqual([
-      { start: '09:00', end: '12:00' },
-      { start: '13:00', end: '18:00' }
-    ]);
+    expect(s.openStart).toBe('09:00');
+    expect(s.openEnd).toBe('18:30');
   });
 
   it('スタッフメールは空でも保存できる（通知スキップ運用）', async () => {
@@ -81,33 +81,40 @@ describe('admin settings', () => {
     const res = await app.request('/admin/settings', {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
-      body: new URLSearchParams({ staff_email: '', window_days: '60', slots_text: '10:00-13:00' }).toString()
+      body: new URLSearchParams({ staff_email: '', window_days: '60', open_start: '10:00', open_end: '21:00' }).toString()
     }, env);
     expect(res.headers.get('location')).toBe('/admin/settings?ok=saved');
   });
 
-  it('不正な時間枠・期間・メール形式は invalid で保存されない', async () => {
+  it('不正な受付時間帯・期間・メール形式は invalid で保存されない', async () => {
     const cookie = await adminCookie();
     const before = await getSettings(env.DB);
 
-    const badSlots = await app.request('/admin/settings', {
+    const badStep = await app.request('/admin/settings', {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
-      body: new URLSearchParams({ staff_email: '', window_days: '60', slots_text: '25:00-26:00' }).toString()
+      body: new URLSearchParams({ staff_email: '', window_days: '60', open_start: '10:15', open_end: '21:00' }).toString()
     }, env);
-    expect(badSlots.headers.get('location')).toBe('/admin/settings?error=invalid');
+    expect(badStep.headers.get('location')).toBe('/admin/settings?error=invalid');
+
+    const badOrder = await app.request('/admin/settings', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
+      body: new URLSearchParams({ staff_email: '', window_days: '60', open_start: '21:00', open_end: '10:00' }).toString()
+    }, env);
+    expect(badOrder.headers.get('location')).toBe('/admin/settings?error=invalid');
 
     const badDays = await app.request('/admin/settings', {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
-      body: new URLSearchParams({ staff_email: '', window_days: '0', slots_text: '10:00-13:00' }).toString()
+      body: new URLSearchParams({ staff_email: '', window_days: '0', open_start: '10:00', open_end: '21:00' }).toString()
     }, env);
     expect(badDays.headers.get('location')).toBe('/admin/settings?error=invalid');
 
     const badEmail = await app.request('/admin/settings', {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
-      body: new URLSearchParams({ staff_email: 'not-an-email', window_days: '60', slots_text: '10:00-13:00' }).toString()
+      body: new URLSearchParams({ staff_email: 'not-an-email', window_days: '60', open_start: '10:00', open_end: '21:00' }).toString()
     }, env);
     expect(badEmail.headers.get('location')).toBe('/admin/settings?error=invalid');
 
