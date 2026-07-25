@@ -8,7 +8,7 @@ import {
 } from '../core/dates';
 import { getSettings, timeOptions, validTimeRange } from '../core/settings';
 import { getCachedStarts, getCacheStatus } from '../core/square';
-import { createRequest, cancelRequestByMember } from '../core/requests';
+import { createRequest, cancelRequestByMember, hideRequestByMember } from '../core/requests';
 import { sendRequestNotification } from '../core/notify';
 
 export const member = new Hono<{ Bindings: Bindings }>();
@@ -29,7 +29,8 @@ export const REQUEST_BADGE_CLASSES: Record<RequestStatus, string> = {
 
 const OK_MESSAGES: Record<string, string> = {
   requested: 'リクエストを送信しました。確定/否認の結果はメールでお知らせします',
-  cancelled: 'キャンセルしました'
+  cancelled: 'キャンセルしました',
+  hidden: '一覧から非表示にしました'
 };
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -40,6 +41,9 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 
 const NOTE_MAX = 500;
+
+// 同日に複数の状態があるときのドットの優先度（確定 > 申請中 > 否認）
+const MARK_PRIORITY: Record<string, number> = { confirmed: 3, pending: 2, declined: 1 };
 
 const MemberShell = (props: { title: string; children: Child }) => (
   <html lang="ja">
@@ -99,11 +103,18 @@ member.get('/:token', async (c) => {
 
   const monthStart = `${month}-01`;
   const monthEnd = addDays(`${addMonths(month, 1)}-01`, -1);
-  const [closedResult, requestsResult, selectedClosedRow] = await Promise.all([
+  const [closedResult, requestsResult, marksResult, selectedClosedRow] = await Promise.all([
     c.env.DB.prepare('SELECT date FROM closed_dates WHERE date >= ? AND date <= ?')
       .bind(monthStart, monthEnd).all<{ date: string }>(),
-    c.env.DB.prepare('SELECT * FROM requests WHERE member_id = ? ORDER BY date DESC, start_time DESC, id DESC LIMIT 50')
+    // 一覧は会員が非表示にした行を出さない（§17.4。管理画面には残る）
+    c.env.DB.prepare('SELECT * FROM requests WHERE member_id = ? AND hidden_by_member = 0 ORDER BY date DESC, start_time DESC, id DESC LIMIT 50')
       .bind(m.id).all<RequestRow>(),
+    // カレンダーのマーク用: 表示月内の申請中/確定/否認（非表示行は出さない・キャンセル済みは出さない）
+    c.env.DB.prepare(
+      `SELECT date, status FROM requests
+       WHERE member_id = ? AND date >= ? AND date <= ?
+         AND status IN ('pending', 'confirmed', 'declined') AND hidden_by_member = 0`
+    ).bind(m.id, monthStart, monthEnd).all<{ date: string; status: RequestStatus }>(),
     // 選択日の停止判定は表示中の月に依存させない（?month=別月&date=停止日 の組み合わせ対策）
     selectedDate !== null
       ? c.env.DB.prepare('SELECT date FROM closed_dates WHERE date = ?').bind(selectedDate).first<{ date: string }>()
@@ -111,6 +122,13 @@ member.get('/:token', async (c) => {
   ]);
   const closedSet = new Set(closedResult.results.map((r) => r.date));
   const myRequests = requestsResult.results;
+
+  // 日付ごとに優先度最上位の状態を1つだけ選ぶ（§17.2: 1日1点）
+  const markByDate = new Map<string, RequestStatus>();
+  for (const r of marksResult.results) {
+    const cur = markByDate.get(r.date);
+    if (!cur || MARK_PRIORITY[r.status] > MARK_PRIORITY[cur]) markByDate.set(r.date, r.status);
+  }
 
   // Square同期が有効なときだけ、選択日のキャッシュ有無・空き開始時刻と、取得時刻を読む。
   // selectedCacheStarts: null = 未取得（キャッシュ行なし）、[] = 満枠、[...] = 空きあり
@@ -178,6 +196,7 @@ member.get('/:token', async (c) => {
                 const dowClass = i === 0 ? ' sun' : i === 6 ? ' sat' : '';
                 if (d === null) return <td class={dowClass.trim() || undefined}></td>;
                 const dayNum = String(Number(d.slice(8, 10)));
+                const mark = markByDate.get(d);
                 if (d < today || d > maxDate) {
                   return (
                     <td class={dowClass.trim() || undefined}>
@@ -191,6 +210,7 @@ member.get('/:token', async (c) => {
                       <span class="day-off">
                         {dayNum}
                         <span class="mark">停</span>
+                        {mark && <span class={`cal-dot dot-${mark}`}></span>}
                       </span>
                     </td>
                   );
@@ -199,6 +219,7 @@ member.get('/:token', async (c) => {
                   <td class={`${d === selectedDate ? 'selected' : ''}${dowClass}`.trim() || undefined}>
                     <a href={`/m/${token}?date=${d}`}>
                       <span class="day-num">{dayNum}</span>
+                      {mark && <span class={`cal-dot dot-${mark}`}></span>}
                     </a>
                   </td>
                 );
@@ -207,6 +228,17 @@ member.get('/:token', async (c) => {
           ))}
         </tbody>
       </table>
+      <p class="cal-legend small">
+        <span class="legend-item">
+          <span class="cal-dot dot-pending"></span>申請中
+        </span>
+        <span class="legend-item">
+          <span class="cal-dot dot-confirmed"></span>確定
+        </span>
+        <span class="legend-item">
+          <span class="cal-dot dot-declined"></span>否認
+        </span>
+      </p>
       <p class="muted small">日付を選ぶと開始・終了時刻を選べます（{formatMD(today)}〜{formatMD(maxDate)} 受付）</p>
       {syncEnabled && (
         <p class="muted small">
@@ -302,6 +334,13 @@ member.get('/:token', async (c) => {
                           </button>
                         </form>
                       )}
+                      {(r.status === 'declined' || r.status === 'cancelled') && (
+                        <form method="post" action={`/m/${token}/requests/${r.id}/hide`}>
+                          <button class="btn btn-sm" type="submit">
+                            非表示
+                          </button>
+                        </form>
+                      )}
                     </td>
                   </tr>
                 );
@@ -380,4 +419,16 @@ member.post('/:token/requests/:id/cancel', async (c) => {
     await sendRequestNotification(c.env.DB, c.env, id, 'cancelled', origin);
   }
   return c.redirect(`/m/${token}?${ok ? 'ok=cancelled' : 'error=invalid'}`);
+});
+
+// ステップ⑤(§17.4): 終了状態（否認/キャンセル済み）の自分の行を一覧から非表示にする。メールは送らない。
+member.post('/:token/requests/:id/hide', async (c) => {
+  const token = c.req.param('token');
+  const m = await resolveMember(c.env.DB, token);
+  if (!m) return c.html(<InvalidTokenPage />, 404);
+
+  const idRaw = c.req.param('id');
+  const id = /^\d{1,9}$/.test(idRaw) ? Number(idRaw) : null;
+  const ok = id !== null && (await hideRequestByMember(c.env.DB, id, m.id));
+  return c.redirect(`/m/${token}?${ok ? 'ok=hidden' : 'error=invalid'}`);
 });

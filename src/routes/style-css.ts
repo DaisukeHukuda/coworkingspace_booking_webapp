@@ -1,4 +1,5 @@
 // ステップ②: カレンダー・状態バッジ・会員ページ用のスタイルを追加
+// ステップ⑤: 予約マーク（ドット）と凡例のスタイルを追加
 export const STYLE_CSS = `
 *, *::before, *::after { box-sizing: border-box; }
 body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif; color: #1a2233; background: #f4f4ef; }
@@ -70,4 +71,12 @@ h2 { font-size: 18px; margin: 32px 0 12px; }
 .slot-list { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
 .slot-row { display: flex; align-items: center; gap: 10px; font-size: 15px; }
 .req-when { font-weight: 700; }
+.cal-dot { width: 6px; height: 6px; border-radius: 50%; }
+.cal td .cal-dot { display: block; margin: 3px auto 0; }
+.cal-legend { display: flex; gap: 16px; align-items: center; margin: 8px 0 0; color: #565f75; }
+.legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.legend-item .cal-dot { display: inline-block; }
+.dot-pending { background: #d97b1f; }
+.dot-confirmed { background: #1c6b34; }
+.dot-declined { background: #b0453a; }
 `;

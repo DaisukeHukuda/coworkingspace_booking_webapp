@@ -136,4 +136,67 @@ describe('member requests', () => {
     const res = await postRequest('f'.repeat(40), { date: target, start: '10:00', end: '13:00', note: '' });
     expect(res.status).toBe(404);
   });
+
+  it('カレンダーに自分の予約マークが表示され、同日は確定が優先される', async () => {
+    const { id, token } = await createMember('マーク会員');
+    const now = '2026-07-25T00:00:00.000Z';
+    await env.DB.prepare(
+      `INSERT INTO requests (member_id, date, start_time, end_time, status, member_note, admin_note, created_at, updated_at)
+       VALUES (?, ?, '10:00', '11:00', 'pending', '', '', ?, ?), (?, ?, '13:00', '14:00', 'confirmed', '', '', ?, ?)`
+    ).bind(id, target, now, now, id, target, now, now).run();
+
+    const res = await app.request(`/m/${token}?month=${monthOf(target)}`, {}, env);
+    const html = await res.text();
+    const count = (needle: string) => html.split(needle).length - 1;
+    expect(count('dot-confirmed')).toBe(2); // 凡例1 + 同日セルは確定優先で1
+    expect(count('dot-pending')).toBe(1);   // 凡例のみ（同日セルには出ない）
+    expect(count('dot-declined')).toBe(1);  // 凡例のみ
+  });
+
+  it('否認済みの行は非表示にでき、一覧・マークから消えるが管理画面には残る', async () => {
+    const { id, token } = await createMember('整理会員');
+    await postRequest(token, { date: target, start: '10:00', end: '13:00', note: '' });
+    const row = await env.DB.prepare('SELECT id FROM requests WHERE member_id = ?').bind(id).first<{ id: number }>();
+    await env.DB.prepare(`UPDATE requests SET status = 'declined', admin_note = '満席' WHERE id = ?`).bind(row!.id).run();
+
+    const before = await app.request(`/m/${token}?month=${monthOf(target)}`, {}, env);
+    const beforeHtml = await before.text();
+    expect(beforeHtml).toContain(`/m/${token}/requests/${row!.id}/hide`); // 非表示ボタンが出る
+    expect(beforeHtml.split('dot-declined').length - 1).toBe(2); // 凡例1 + セル1
+
+    const res = await app.request(`/m/${token}/requests/${row!.id}/hide`, { method: 'POST' }, env);
+    expect(res.headers.get('location')).toContain('ok=hidden');
+
+    const after = await app.request(`/m/${token}?month=${monthOf(target)}`, {}, env);
+    const afterHtml = await after.text();
+    expect(afterHtml).toContain('まだリクエストはありません'); // 一覧から消えた
+    expect(afterHtml.split('dot-declined').length - 1).toBe(1); // マークも消えた（凡例のみ）
+
+    const db = await env.DB.prepare('SELECT hidden_by_member FROM requests WHERE id = ?').bind(row!.id).first<{ hidden_by_member: number }>();
+    expect(db!.hidden_by_member).toBe(1);
+
+    // 管理画面の一覧には残る（記録保全）
+    const cookie = await adminCookie();
+    const adminList = await app.request('/admin/requests/all', { headers: { cookie } }, env);
+    expect(await adminList.text()).toContain('整理会員');
+  });
+
+  it('申請中の行は非表示にできず、他人のリクエストも非表示にできない', async () => {
+    const a = await createMember('非表示不可会員');
+    const b = await createMember('第三者会員');
+    await postRequest(a.token, { date: target, start: '17:00', end: '19:00', note: '' });
+    const row = await env.DB.prepare('SELECT id FROM requests WHERE member_id = ?').bind(a.id).first<{ id: number }>();
+
+    // 申請中は非表示にできない
+    const pending = await app.request(`/m/${a.token}/requests/${row!.id}/hide`, { method: 'POST' }, env);
+    expect(pending.headers.get('location')).toContain('error=invalid');
+
+    // 否認後でも他人は非表示にできない
+    await env.DB.prepare(`UPDATE requests SET status = 'declined' WHERE id = ?`).bind(row!.id).run();
+    const other = await app.request(`/m/${b.token}/requests/${row!.id}/hide`, { method: 'POST' }, env);
+    expect(other.headers.get('location')).toContain('error=invalid');
+
+    const db = await env.DB.prepare('SELECT hidden_by_member FROM requests WHERE id = ?').bind(row!.id).first<{ hidden_by_member: number }>();
+    expect(db!.hidden_by_member).toBe(0);
+  });
 });
