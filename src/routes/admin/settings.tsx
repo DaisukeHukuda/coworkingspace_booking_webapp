@@ -138,6 +138,10 @@ settingsPage.get('/', async (c) => {
           </a>{' '}
           <span class="muted">アクセストークン設定済みなら、ロケーションとサービスをプルダウンで選べます</span>
         </p>
+        <p class="muted small">
+          サービスが複数ある場合は、<strong>一番短い時間のサービス</strong>を選んでください（例:
+          「4時間」と「1日」なら「4時間」）。短い方を選ぶと、部分的に空いている日も正しく「空きあり」と表示されます。選ぶのは1つだけで、同じスペースを使う他のサービスの予約も空き状況に反映されます。
+        </p>
         {helperErrors.length > 0 && (
           <p class="msg-error">
             Squareから一覧を取得できませんでした（{helperErrors.join(' / ')}）。
