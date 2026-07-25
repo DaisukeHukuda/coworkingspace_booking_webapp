@@ -134,8 +134,14 @@ member.get('/:token', async (c) => {
   // selectedCacheStarts: null = 未取得（キャッシュ行なし）、[] = 満枠、[...] = 空きあり
   let selectedCacheStarts: string[] | null = null;
   let lastFetched: string | null = null;
+  // §18: 表示月のうち「取得済みかつ空きゼロ」の日は、カレンダーでグレー×表示（選択不可）にする
+  const emptyDates = new Set<string>();
   if (syncEnabled) {
     lastFetched = (await getCacheStatus(c.env.DB)).lastFetched;
+    const monthStarts = await getCachedStarts(c.env.DB, monthStart, monthEnd);
+    for (const [d, arr] of monthStarts) {
+      if (arr.length === 0) emptyDates.add(d);
+    }
     if (selectedDate !== null) {
       const starts = await getCachedStarts(c.env.DB, selectedDate, selectedDate);
       selectedCacheStarts = starts.has(selectedDate) ? starts.get(selectedDate)! : null;
@@ -215,6 +221,17 @@ member.get('/:token', async (c) => {
                     </td>
                   );
                 }
+                if (emptyDates.has(d)) {
+                  return (
+                    <td class={dowClass.trim() || undefined}>
+                      <span class="day-off">
+                        {dayNum}
+                        <span class="mark">×</span>
+                        {mark && <span class={`cal-dot dot-${mark}`}></span>}
+                      </span>
+                    </td>
+                  );
+                }
                 return (
                   <td class={`${d === selectedDate ? 'selected' : ''}${dowClass}`.trim() || undefined}>
                     <a href={`/m/${token}?date=${d}`}>
@@ -242,6 +259,7 @@ member.get('/:token', async (c) => {
       <p class="muted small">日付を選ぶと開始・終了時刻を選べます（{formatMD(today)}〜{formatMD(maxDate)} 受付）</p>
       {syncEnabled && (
         <p class="muted small">
+          ×の日はSquare側の空きがありません／
           {lastFetched
             ? `${formatStampJst(lastFetched)}時点の空き状況です`
             : '空き情報をまだ取得できていません。表示はまもなく更新されます'}

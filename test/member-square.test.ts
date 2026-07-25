@@ -3,7 +3,7 @@ import { env } from 'cloudflare:test';
 import { app } from '../src/index';
 import { adminCookie } from './helpers';
 import { setSetting } from '../src/core/settings';
-import { currentJstDate, addDays } from '../src/core/dates';
+import { currentJstDate, addDays, monthOf } from '../src/core/dates';
 
 async function createMember(name: string): Promise<{ id: number; token: string }> {
   const cookie = await adminCookie();
@@ -105,5 +105,26 @@ describe('member page with Square sync', () => {
     expect(row!.status).toBe('pending');
     expect(row!.start_time).toBe('10:30');
     expect(row!.end_time).toBe('12:00');
+  });
+
+  it('同期有効: 空きゼロの日はカレンダーでグレー×表示になり選択できない（停止日は停が優先）', async () => {
+    const { token } = await createMember('同期会員G');
+    await enableSync();
+    await seedCache(target, []); // 空きゼロ
+
+    const res = await app.request(`/m/${token}?month=${monthOf(target)}`, {}, env);
+    const html = await res.text();
+    const count = (needle: string) => html.split(needle).length - 1;
+    expect(count('<span class="mark">×</span>')).toBe(1); // ×マークが1つ
+    expect(html).not.toContain(`?date=${target}`);        // ×日は選択リンクなし
+    expect(html).toContain('×の日はSquare側の空きがありません'); // 注記
+
+    // 同じ日を受付停止日にすると「停」が優先され、×は消える
+    await env.DB.prepare(`INSERT INTO closed_dates (date, reason) VALUES (?, '休業')`).bind(target).run();
+    const res2 = await app.request(`/m/${token}?month=${monthOf(target)}`, {}, env);
+    const html2 = await res2.text();
+    const count2 = (needle: string) => html2.split(needle).length - 1;
+    expect(count2('<span class="mark">停</span>')).toBe(1);
+    expect(count2('<span class="mark">×</span>')).toBe(0);
   });
 });
