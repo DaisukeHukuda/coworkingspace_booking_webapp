@@ -133,3 +133,98 @@ export async function getCacheStatus(db: D1Database): Promise<{ days: number; la
     .first<{ n: number; m: string | null }>();
   return { days: row?.n ?? 0, lastFetched: row?.m ?? null };
 }
+
+// --- ステップ⑤(§17.5): 設定画面用の一覧ヘルパー。絶対に例外を投げない・実APIはテストで叩かず fetcher を注入する ---
+
+export interface SquareOption {
+  id: string;
+  name: string;
+}
+
+export type SquareListResult = { ok: true; items: SquareOption[] } | { ok: false; error: string };
+
+// Square Locations API からロケーション一覧を取得する。name 欠落は id で代用。
+// 想定外の形状は該当要素だけ無視して継続する（実APIとの形状差は結合確認で吸収）。
+export async function fetchLocations(env: SquareEnv, fetcher: typeof fetch = fetch): Promise<SquareListResult> {
+  try {
+    if (!env.SQUARE_ACCESS_TOKEN) return { ok: false, error: 'no_token' };
+    const base = (env.SQUARE_API_BASE ?? DEFAULT_API_BASE).replace(/\/+$/, '');
+    const res = await fetcher(`${base}/v2/locations`, {
+      method: 'GET',
+      headers: {
+        authorization: `Bearer ${env.SQUARE_ACCESS_TOKEN}`,
+        'square-version': '2024-08-21'
+      }
+    });
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+
+    const json = (await res.json()) as { locations?: unknown };
+    const items: SquareOption[] = [];
+    if (Array.isArray(json.locations)) {
+      for (const l of json.locations) {
+        const id = (l as { id?: unknown })?.id;
+        const name = (l as { name?: unknown })?.name;
+        if (typeof id === 'string' && id !== '') {
+          items.push({ id, name: typeof name === 'string' && name !== '' ? name : id });
+        }
+      }
+    }
+    return { ok: true, items };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+// Square Catalog API から予約可能サービス（APPOINTMENTS_SERVICE）のバリエーション一覧を取得する。
+// id はバリエーションID（= service_variation_id として設定に保存する値）、name は「アイテム名（バリエーション名）」。
+export async function fetchBookableServices(env: SquareEnv, fetcher: typeof fetch = fetch): Promise<SquareListResult> {
+  try {
+    if (!env.SQUARE_ACCESS_TOKEN) return { ok: false, error: 'no_token' };
+    const base = (env.SQUARE_API_BASE ?? DEFAULT_API_BASE).replace(/\/+$/, '');
+    const res = await fetcher(`${base}/v2/catalog/search-catalog-items`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${env.SQUARE_ACCESS_TOKEN}`,
+        'content-type': 'application/json',
+        'square-version': '2024-08-21'
+      },
+      body: JSON.stringify({ product_types: ['APPOINTMENTS_SERVICE'] })
+    });
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+
+    const json = (await res.json()) as { items?: unknown };
+    const items: SquareOption[] = [];
+    if (Array.isArray(json.items)) {
+      for (const item of json.items) {
+        const itemData = (item as { item_data?: unknown })?.item_data as
+          | { name?: unknown; variations?: unknown }
+          | undefined;
+        const rawItemName = itemData?.name;
+        const itemName = typeof rawItemName === 'string' ? rawItemName : '';
+        const rawVariations = itemData?.variations;
+        const variations = Array.isArray(rawVariations) ? rawVariations : [];
+        for (const v of variations) {
+          const vid = (v as { id?: unknown })?.id;
+          if (typeof vid !== 'string' || vid === '') continue;
+          const vData = (v as { item_variation_data?: unknown })?.item_variation_data as
+            | { name?: unknown }
+            | undefined;
+          const rawVName = vData?.name;
+          const vName = typeof rawVName === 'string' ? rawVName : '';
+          const name =
+            itemName !== '' && vName !== '' && vName !== itemName
+              ? `${itemName}（${vName}）`
+              : itemName !== ''
+                ? itemName
+                : vName !== ''
+                  ? vName
+                  : vid;
+          items.push({ id: vid, name });
+        }
+      }
+    }
+    return { ok: true, items };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
