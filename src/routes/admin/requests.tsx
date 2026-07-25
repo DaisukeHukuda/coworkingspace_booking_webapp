@@ -42,9 +42,9 @@ requests.get('/', async (c) => {
   ]);
   const rows = result.results;
 
-  // 同期有効時のみ: 承認待ちの枠がSquareキャッシュから消えていたら「埋まった可能性」を警告する。
-  // 日付がキャッシュ済み（行あり）なのに開始時刻が含まれない＝Square側で埋まった強いサイン。
-  // 未取得日（行なし）は判断材料が無いので警告しない（将来日への誤警告を避ける）。
+  // 同期有効時のみ: 承認待ちの時間帯がSquareキャッシュの空きと重ならなければ「埋まった可能性」を警告する。
+  // ステップ⑤(§17.1)でレンジ重なり近似に変更: 空き開始時刻 t のうち start<=t<end に入るものが1つも無ければ警告。
+  // 日付がキャッシュ済み（行あり）であることが前提。未取得日（行なし）は判断材料が無いので警告しない（将来日への誤警告を避ける）。
   const cachedByDate = new Map<string, string[]>();
   if (settings.syncEnabled && rows.length > 0) {
     let from = rows[0].date;
@@ -59,7 +59,7 @@ requests.get('/', async (c) => {
   const mayBeTaken = (r: RequestWithMember): boolean => {
     if (!settings.syncEnabled) return false;
     const starts = cachedByDate.get(r.date);
-    return starts !== undefined && !starts.includes(r.start_time);
+    return starts !== undefined && !starts.some((t) => t >= r.start_time && t < r.end_time);
   };
 
   return c.html(
