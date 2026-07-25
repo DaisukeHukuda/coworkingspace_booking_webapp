@@ -43,3 +43,13 @@ export async function cancelRequestByMember(db: D1Database, id: number, memberId
   ).bind(new Date().toISOString(), id, memberId).run();
   return res.meta.changes === 1;
 }
+
+// 会員が自分の「終了状態（否認/キャンセル済み）」の行を一覧から非表示にする。本人・終了状態・未非表示のみ true。
+// 記録自体は消さない（管理画面の一覧には残る）。0行更新 = 非表示にできない（false）。
+export async function hideRequestByMember(db: D1Database, id: number, memberId: number): Promise<boolean> {
+  const res = await db.prepare(
+    `UPDATE requests SET hidden_by_member = 1, updated_at = ?
+     WHERE id = ? AND member_id = ? AND status IN ('declined', 'cancelled') AND hidden_by_member = 0`
+  ).bind(new Date().toISOString(), id, memberId).run();
+  return res.meta.changes === 1;
+}

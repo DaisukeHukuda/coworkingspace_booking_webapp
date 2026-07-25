@@ -32,6 +32,7 @@ export interface RequestRow {
   status: RequestStatus;
   member_note: string;
   admin_note: string;
+  hidden_by_member: number; // 1 = 会員が一覧から非表示にした（管理画面には残る）
   created_at: string;
   updated_at: string;
 }

@@ -1,11 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { env } from 'cloudflare:test';
-import { getSettings, setSetting, saveSettings, parseSlotsText, slotsToText, findSlot, DEFAULT_SLOTS } from '../src/core/settings';
+import {
+  getSettings, setSetting, saveSettings,
+  isHalfStep, halfStepRange, timeOptions
+} from '../src/core/settings';
 
 describe('settings', () => {
-  it('シード値を読み出せる', async () => {
+  it('シード値を読み出せる（受付時間帯の既定は10:00〜21:00）', async () => {
     const s = await getSettings(env.DB);
-    expect(s.slots).toEqual(DEFAULT_SLOTS);
+    expect(s.openStart).toBe('10:00');
+    expect(s.openEnd).toBe('21:00');
     expect(s.windowDays).toBe(60);
     expect(s.staffEmail).toBe('');
   });
@@ -18,44 +22,40 @@ describe('settings', () => {
     expect(s.windowDays).toBe(30);
   });
 
-  it('slots が壊れた値（不正JSON・空配列・不正な時刻）でもデフォルトにフォールバックする', async () => {
-    await setSetting(env.DB, 'slots', '{broken');
-    expect((await getSettings(env.DB)).slots).toEqual(DEFAULT_SLOTS);
+  it('open_start/open_end が壊れた値（非30分刻み・開始>=終了）でもデフォルトにフォールバックする', async () => {
+    await setSetting(env.DB, 'open_start', '10:15'); // 30分刻みでない
+    await setSetting(env.DB, 'open_end', '21:00');
+    let s = await getSettings(env.DB);
+    expect(s.openStart).toBe('10:00'); // 既定へ
+    expect(s.openEnd).toBe('21:00');
 
-    await setSetting(env.DB, 'slots', '[]'); // 枠ゼロは無効
-    expect((await getSettings(env.DB)).slots).toEqual(DEFAULT_SLOTS);
+    await setSetting(env.DB, 'open_start', '21:00'); // 開始>=終了
+    await setSetting(env.DB, 'open_end', '10:00');
+    s = await getSettings(env.DB);
+    expect(s.openStart).toBe('10:00');
+    expect(s.openEnd).toBe('21:00');
 
-    await setSetting(env.DB, 'slots', '[{"start":"zz","end":"99:99"}]'); // 時刻形式不正
-    expect((await getSettings(env.DB)).slots).toEqual(DEFAULT_SLOTS);
-
-    await setSetting(env.DB, 'slots', '[{"start":"13:00","end":"10:00"}]'); // 開始>=終了
-    expect((await getSettings(env.DB)).slots).toEqual(DEFAULT_SLOTS);
+    await setSetting(env.DB, 'open_start', '09:00'); // 正しい値は反映
+    await setSetting(env.DB, 'open_end', '18:30');
+    s = await getSettings(env.DB);
+    expect(s.openStart).toBe('09:00');
+    expect(s.openEnd).toBe('18:30');
   });
 
-  it('parseSlotsText は「HH:MM-HH:MM」の行を受け付ける', () => {
-    expect(parseSlotsText('10:00-13:00\n13:00-17:00')).toEqual([
-      { start: '10:00', end: '13:00' },
-      { start: '13:00', end: '17:00' }
-    ]);
-    // 空行と前後空白は無視、開始時刻順に整列
-    expect(parseSlotsText(' 17:00-21:00 \n\n10:00-13:00\n')).toEqual([
-      { start: '10:00', end: '13:00' },
-      { start: '17:00', end: '21:00' }
-    ]);
+  it('isHalfStep と halfStepRange', () => {
+    expect(isHalfStep('10:00')).toBe(true);
+    expect(isHalfStep('10:30')).toBe(true);
+    expect(isHalfStep('10:15')).toBe(false); // 15分は不可
+    expect(isHalfStep('24:00')).toBe(false); // 時が範囲外
+    expect(isHalfStep('9:00')).toBe(false);  // ゼロ埋めでない
+    expect(halfStepRange('10:00', '11:30')).toEqual(['10:00', '10:30', '11:00', '11:30']);
+    expect(halfStepRange('10:00', '10:00')).toEqual(['10:00']);
   });
 
-  it('parseSlotsText は不正入力に null を返す', () => {
-    expect(parseSlotsText('')).toBeNull();               // 枠ゼロ
-    expect(parseSlotsText('10:00')).toBeNull();          // 形式不正
-    expect(parseSlotsText('13:00-10:00')).toBeNull();    // 開始>=終了
-    expect(parseSlotsText('25:00-26:00')).toBeNull();    // 時刻範囲外
-    expect(parseSlotsText('10:00-13:00\n10:00-14:00')).toBeNull(); // 開始時刻重複
-  });
-
-  it('slotsToText と findSlot', () => {
-    expect(slotsToText(DEFAULT_SLOTS)).toBe('10:00-13:00\n13:00-17:00\n17:00-21:00');
-    expect(findSlot(DEFAULT_SLOTS, '13:00')).toEqual({ start: '13:00', end: '17:00' });
-    expect(findSlot(DEFAULT_SLOTS, '09:00')).toBeNull();
+  it('timeOptions は開始（末尾を除く）・終了（先頭を除く）の選択肢を返す', () => {
+    const { starts, ends } = timeOptions('10:00', '12:00');
+    expect(starts).toEqual(['10:00', '10:30', '11:00', '11:30']); // 12:00 では始められない
+    expect(ends).toEqual(['10:30', '11:00', '11:30', '12:00']);   // 10:00 では終われない
   });
 
   it('Square未設定なら syncEnabled は false で ID は空', async () => {

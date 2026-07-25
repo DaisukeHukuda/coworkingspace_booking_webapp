@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { env } from 'cloudflare:test';
-import { createRequest, confirmRequest, declineRequest, cancelRequestByMember } from '../src/core/requests';
+import { createRequest, confirmRequest, declineRequest, cancelRequestByMember, hideRequestByMember } from '../src/core/requests';
 
 async function seedMember(name: string): Promise<number> {
   const token = crypto.randomUUID().replaceAll('-', '').padEnd(40, '0').slice(0, 40);
@@ -76,5 +76,19 @@ describe('requests core', () => {
     if (!r.ok) throw new Error('unreachable');
     await declineRequest(env.DB, r.id, '');
     expect(await cancelRequestByMember(env.DB, r.id, memberId)).toBe(false);
+  });
+
+  it('hideRequestByMember は終了状態（否認/キャンセル）の本人の行だけ隠す', async () => {
+    const memberId = await seedMember('非表示');
+    const otherId = await seedMember('別人');
+    const r = await createRequest(env.DB, { memberId, ...INPUT });
+    if (!r.ok) throw new Error('unreachable');
+    expect(await hideRequestByMember(env.DB, r.id, memberId)).toBe(false); // 申請中は隠せない
+    await declineRequest(env.DB, r.id, '満席');
+    expect(await hideRequestByMember(env.DB, r.id, otherId)).toBe(false);   // 他人は隠せない
+    expect(await hideRequestByMember(env.DB, r.id, memberId)).toBe(true);   // 本人・否認済みは隠せる
+    expect(await hideRequestByMember(env.DB, r.id, memberId)).toBe(false);  // 二度目は0行
+    const row = await env.DB.prepare('SELECT hidden_by_member FROM requests WHERE id = ?').bind(r.id).first<{ hidden_by_member: number }>();
+    expect(row!.hidden_by_member).toBe(1);
   });
 });
