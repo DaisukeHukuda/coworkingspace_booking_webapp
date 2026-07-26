@@ -164,4 +164,44 @@ describe('notify', () => {
     expect(body.text).toContain('メモです');
     expect(await lastLog()).toEqual({ to_address: 'member@example.com', type: 'requested_member', status: 'sent' });
   });
+
+  it('カスタムテンプレートがあれば件名・本文をタグ置換して送る', async () => {
+    const id = await seedRequest();
+    await env.DB.prepare(`UPDATE requests SET admin_note = 'お待ちしています' WHERE id = ?`).bind(id).run();
+    await setSetting(env.DB, 'mail_tpl_confirmed_subject', '確定です {日時}');
+    await setSetting(env.DB, 'mail_tpl_confirmed_body', '{会員名}様（{会員種別}） {スタッフメモ} メモ:{会員メモ}');
+    const calls: { init: RequestInit }[] = [];
+    const fetcher = (async (_url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ init: init! });
+      return new Response('{}', { status: 200 });
+    }) as typeof fetch;
+
+    await sendRequestNotification(env.DB, { RESEND_API_KEY: 'key' }, id, 'confirmed', 'http://localhost:8787', fetcher);
+
+    const body = JSON.parse(String(calls[0].init.body));
+    expect(body.subject).toBe('確定です 2026-08-01 10:00〜13:00');
+    expect(body.text).toBe('通知会員様（回数券） お待ちしています メモ:メモです');
+    expect((await lastLog())!.status).toBe('sent');
+  });
+
+  it('テンプレートが空欄の種類は標準文面のまま送る', async () => {
+    const id = await seedRequest();
+    await setSetting(env.DB, 'mail_tpl_confirmed_subject', '   '); // 空白のみ = 未設定扱い
+    await setSetting(env.DB, 'mail_tpl_requested_member_subject', 'カスタム受付');
+    const calls: { init: RequestInit }[] = [];
+    const fetcher = (async (_url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ init: init! });
+      return new Response('{}', { status: 200 });
+    }) as typeof fetch;
+
+    // confirmed は空白のみ → 標準の件名
+    await sendRequestNotification(env.DB, { RESEND_API_KEY: 'key' }, id, 'confirmed', 'http://localhost:8787', fetcher);
+    expect(JSON.parse(String(calls[0].init.body)).subject).toContain('ご利用リクエスト確定');
+
+    // requested_member は件名だけカスタム・本文は標準
+    await sendRequestNotification(env.DB, { RESEND_API_KEY: 'key' }, id, 'requested_member', 'http://localhost:8787', fetcher);
+    const second = JSON.parse(String(calls[1].init.body));
+    expect(second.subject).toBe('カスタム受付');
+    expect(second.text).toContain('受け付けました'); // 本文は標準のまま
+  });
 });

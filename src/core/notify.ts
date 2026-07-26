@@ -1,4 +1,6 @@
 import { getSettings } from './settings';
+import { getMailTemplates, renderTemplate, MAIL_TEMPLATE_TYPES } from './mailTemplates';
+import type { MailTemplateType } from './mailTemplates';
 
 export type EmailType = 'requested' | 'requested_member' | 'cancelled' | 'confirmed' | 'declined' | 'sync_stale';
 
@@ -119,7 +121,28 @@ export async function sendRequestNotification(
       }
     }
 
-    const text = lines.filter((line) => line !== '').join('\n');
+    let text = lines.filter((line) => line !== '').join('\n');
+
+    // §19: 管理画面で編集されたテンプレートがあれば件名・本文を差し替える。
+    // 読込や置換に失敗しても標準文面で続行する（メールは絶対に例外を投げない）。
+    try {
+      if ((MAIL_TEMPLATE_TYPES as readonly string[]).includes(type)) {
+        const templates = await getMailTemplates(db);
+        const tpl = templates[type as MailTemplateType];
+        const vars: Record<string, string> = {
+          '会員名': r.member_name,
+          '会員種別': typeLabel,
+          '日時': when,
+          '会員メモ': r.member_note,
+          'スタッフメモ': r.admin_note,
+          '管理画面リンク': `${linkBase}${type === 'cancelled' ? '/admin/requests/all' : '/admin/requests'}`
+        };
+        if (tpl.subject.trim() !== '') subject = renderTemplate(tpl.subject, vars);
+        if (tpl.body.trim() !== '') text = renderTemplate(tpl.body, vars);
+      }
+    } catch {
+      // テンプレートが読めなくても標準文面のまま送る
+    }
 
     if (!env.RESEND_API_KEY || !to) {
       await logEmail(db, requestId, to, type, 'skipped', null);
@@ -155,6 +178,7 @@ export async function sendRequestNotification(
 
 // 同期が24時間以上停止したことをスタッフに知らせる（scheduled から呼ぶ）。
 // リクエストに紐づかない通知なので email_log の request_id は 0 で記録する。絶対に例外を投げない。
+// §19対象外: システム通知のため文面は固定。
 export async function sendSyncStaleNotification(
   db: D1Database,
   env: NotifyEnv,

@@ -14,7 +14,8 @@ export type SettingKey =
   | 'window_days'
   | 'staff_email'
   | 'square_location_id'
-  | 'square_service_variation_id';
+  | 'square_service_variation_id'
+  | `mail_tpl_${'requested' | 'requested_member' | 'cancelled' | 'confirmed' | 'declined'}_${'subject' | 'body'}`;
 
 export const DEFAULT_WINDOW_DAYS = 60;
 export const DEFAULT_OPEN_START = '10:00';
