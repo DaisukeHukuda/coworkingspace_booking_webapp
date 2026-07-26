@@ -8,6 +8,7 @@ import { requests } from './admin/requests';
 import { closed } from './admin/closed';
 import { settingsPage } from './admin/settings';
 import { mailPage } from './admin/mail';
+import { dashboard } from './admin/dashboard';
 
 const COOKIE_NAME = 'admin_session';
 // Cookieの有効期限はブラウザ/Hono仕様で最大400日。この上限＝実質「時間経過では自動ログアウトしない」
@@ -92,5 +93,5 @@ admin.route('/closed', closed);
 admin.route('/settings', settingsPage);
 admin.route('/mail', mailPage);
 
-// 承認待ちが最優先画面。設計書 §5.2
-admin.get('/', (c) => c.redirect('/admin/requests'));
+// トップはダッシュボード（§20。旧: 承認待ちへリダイレクト）
+admin.route('/', dashboard);

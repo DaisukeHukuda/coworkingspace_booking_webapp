@@ -80,4 +80,10 @@ h2 { font-size: 18px; margin: 32px 0 12px; }
 .dot-pending { background: #d97b1f; }
 .dot-confirmed { background: #1c6b34; }
 .dot-declined { background: #b0453a; }
+.dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 8px; }
+.dash-card { display: block; background: #fff; border: 1px solid #dcdcd2; border-radius: 10px; padding: 14px 16px; text-decoration: none; color: inherit; }
+.dash-card .dash-num { display: block; font-size: 28px; font-weight: 700; line-height: 1.2; }
+.dash-card .dash-label { font-size: 12px; color: #565f75; }
+.dash-warn { border-color: #d97b1f; background: #fdf3e3; }
+.dash-warn .dash-num { color: #8a4b12; }
 `;

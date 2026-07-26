@@ -29,7 +29,7 @@ describe('admin auth', () => {
     expect(res.headers.get('set-cookie')).toBeNull();
   });
 
-  it('正しいパスワードでログインでき、Cookie付きの /admin は承認待ちへ転送される', async () => {
+  it('正しいパスワードでログインでき、Cookie付きの /admin はダッシュボードが表示される', async () => {
     const res = await login('test-password'); // vitest.config.ts の ADMIN_PASSWORD
     expect(res.status).toBe(302);
     expect(res.headers.get('location')).toBe('/admin');
@@ -41,9 +41,9 @@ describe('admin auth', () => {
     expect(setCookie).toContain('Max-Age=34560000'); // 400日（Cookie Max-Ageの上限＝実質自動ログアウトしない）
     const cookie = setCookie!.split(';')[0];
     const page = await app.request('/admin', { headers: { cookie } }, env);
-    // ログイン済みなら /admin/login ではなく承認待ちへ転送される
-    expect(page.status).toBe(302);
-    expect(page.headers.get('location')).toBe('/admin/requests');
+    // ログイン済みなら /admin/login ではなくダッシュボードが表示される（§20）
+    expect(page.status).toBe(200);
+    expect(await page.text()).toContain('ダッシュボード');
   });
 
   it('ログアウトするとCookieが無効化される', async () => {
