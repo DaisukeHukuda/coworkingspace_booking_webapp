@@ -34,8 +34,8 @@ const SquareIdField = (props: { label: string; manualLabel: string; name: string
   if (result && result.ok) {
     const inList = result.items.some((o) => o.id === props.value);
     return (
-      <div class="field">
-        <label>{props.label}</label>
+      <label class="settings-field">
+        <span>{props.label}</span>
         <select name={props.name}>
           <option value="" selected={props.value === ''}>
             （未設定）
@@ -51,14 +51,14 @@ const SquareIdField = (props: { label: string; manualLabel: string; name: string
             </option>
           ))}
         </select>
-      </div>
+      </label>
     );
   }
   return (
-    <div class="field">
-      <label>{props.manualLabel}</label>
+    <label class="settings-field">
+      <span>{props.manualLabel}</span>
       <input type="text" name={props.name} value={props.value} maxlength={ID_MAX} />
-    </div>
+    </label>
   );
 };
 
@@ -87,99 +87,122 @@ settingsPage.get('/', async (c) => {
       {okParam && OK_MESSAGES[okParam] && <p class="msg-ok">{OK_MESSAGES[okParam]}</p>}
       {errorParam && ERROR_MESSAGES[errorParam] && <p class="msg-error">{ERROR_MESSAGES[errorParam]}</p>}
 
-      <form class="card card-pad" method="post" action="/admin/settings">
-        <div class="field">
-          <label>スタッフ通知先メールアドレス（リクエスト・キャンセルの通知が届きます。空なら通知しません）</label>
-          <input type="email" name="staff_email" value={s.staffEmail} />
-        </div>
-        <div class="field">
-          <label>受付可能期間（何日先まで受け付けるか。1〜365）</label>
-          <input type="number" name="window_days" min={1} max={365} value={s.windowDays} required />
-        </div>
-        <div class="field">
-          <label>受付時間帯（開始）— 会員はこの範囲から30分単位で時間を選びます</label>
-          <select name="open_start">
-            {OPEN_TIME_CHOICES.map((t) => (
-              <option value={t} selected={t === s.openStart}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div class="field">
-          <label>受付時間帯（終了）— 開始より後の時刻を選んでください</label>
-          <select name="open_end">
-            {OPEN_TIME_CHOICES.map((t) => (
-              <option value={t} selected={t === s.openEnd}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </div>
+      <form method="post" action="/admin/settings">
+        <div class="settings-grid">
+          <div class="dash-panel">
+            <div class="dash-panel-head">
+              <span>受付のルール</span>
+            </div>
+            <div class="settings-card-body">
+              <label class="settings-field">
+                <span>
+                  スタッフ通知先メールアドレス<span class="hint">（リクエスト・キャンセルの通知が届きます。空なら通知しません）</span>
+                </span>
+                <input type="email" name="staff_email" value={s.staffEmail} />
+              </label>
+              <div class="settings-row">
+                <label class="settings-field w-sm">
+                  <span>受付可能期間（日）</span>
+                  <input type="number" name="window_days" min={1} max={365} value={s.windowDays} required />
+                </label>
+                <label class="settings-field grow">
+                  <span>受付時間帯（開始）</span>
+                  <select name="open_start">
+                    {OPEN_TIME_CHOICES.map((t) => (
+                      <option value={t} selected={t === s.openStart}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label class="settings-field grow">
+                  <span>受付時間帯（終了）</span>
+                  <select name="open_end">
+                    {OPEN_TIME_CHOICES.map((t) => (
+                      <option value={t} selected={t === s.openEnd}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <p class="settings-note">
+                会員はこの範囲から30分単位で時刻を選びます。受付可能期間は何日先まで受け付けるか（1〜365）です。
+              </p>
+            </div>
+          </div>
 
-        <h2>Square連携（両IDを空にすると同期を無効化＝手動モード）</h2>
-        <p class="small">
-          現在の状態:{' '}
-          {s.syncEnabled ? (
-            <span class="badge badge-on">同期有効</span>
-          ) : (
-            <span class="badge badge-off">同期無効（手動モード）</span>
-          )}
-          {s.syncEnabled && (
-            <span class="muted">
-              {' '}／ 最終取得: {cache.lastFetched ? `${formatStampJst(cache.lastFetched)}（JST）` : 'まだ取得していません'}
-              {' '}／ キャッシュ {cache.days} 日分
-            </span>
-          )}
-        </p>
-        <p class="small">
-          <a class="btn btn-sm" href="/admin/settings?square=1">
-            Squareから一覧を取得
-          </a>{' '}
-          <span class="muted">アクセストークン設定済みなら、ロケーションとサービスをプルダウンで選べます</span>
-        </p>
-        <p class="muted small">
-          サービスが複数ある場合は、<strong>一番短い時間のサービス</strong>を選んでください（例:
-          「4時間」と「1日」なら「4時間」）。短い方を選ぶと、部分的に空いている日も正しく「空きあり」と表示されます。選ぶのは1つだけで、同じスペースを使う他のサービスの予約も空き状況に反映されます。
-        </p>
-        {helperErrors.length > 0 && (
-          <p class="msg-error">
-            Squareから一覧を取得できませんでした（{helperErrors.join(' / ')}）。
-            アクセストークン（SQUARE_ACCESS_TOKEN）の設定をご確認ください。IDの直接入力は引き続き使えます。
-          </p>
-        )}
-        <SquareIdField
-          label="Square ロケーション（プルダウンで選択）"
-          manualLabel="Square ロケーションID（location_id）"
-          name="square_location_id"
-          value={s.squareLocationId}
-          result={locations}
-        />
-        <SquareIdField
-          label="Square サービス（プルダウンで選択）"
-          manualLabel="Square サービスバリエーションID（service_variation_id）"
-          name="square_service_variation_id"
-          value={s.squareServiceVariationId}
-          result={services}
-        />
-
-        <button class="btn btn-primary btn-lg" type="submit">
-          保存
-        </button>
-        <p class="muted small" style="margin:12px 0 0">
-          メールの差出人アドレス・ResendのAPIキー・Squareのアクセストークンはサーバー側の環境変数（RESEND_API_KEY / NOTIFY_EMAIL_FROM / SQUARE_ACCESS_TOKEN）で設定します。
-        </p>
+          <div class="dash-panel">
+            <div class="dash-panel-head">
+              <span>Square連携</span>
+              {s.syncEnabled ? (
+                <span class="badge badge-on">同期有効</span>
+              ) : (
+                <span class="badge badge-off">同期無効（手動モード）</span>
+              )}
+            </div>
+            <div class="settings-card-body">
+              <p class="settings-note">
+                {s.syncEnabled ? (
+                  <>
+                    最終取得 {cache.lastFetched ? `${formatStampJst(cache.lastFetched)}（JST）` : 'まだ取得していません'}
+                    {' '}／ キャッシュ {cache.days} 日分。
+                  </>
+                ) : null}
+                両方のIDを空にすると同期を無効化＝手動モードになります。
+              </p>
+              {helperErrors.length > 0 && (
+                <p class="msg-error">
+                  Squareから一覧を取得できませんでした（{helperErrors.join(' / ')}）。
+                  アクセストークン（SQUARE_ACCESS_TOKEN）の設定をご確認ください。IDの直接入力は引き続き使えます。
+                </p>
+              )}
+              <SquareIdField
+                label="Square ロケーション（プルダウンで選択）"
+                manualLabel="Square ロケーションID（location_id）"
+                name="square_location_id"
+                value={s.squareLocationId}
+                result={locations}
+              />
+              <SquareIdField
+                label="Square サービス（プルダウンで選択）"
+                manualLabel="Square サービスバリエーションID（service_variation_id）"
+                name="square_service_variation_id"
+                value={s.squareServiceVariationId}
+                result={services}
+              />
+              <div class="settings-actions">
+                <button class="btn btn-primary" type="submit">
+                  保存する
+                </button>
+                <a class="btn btn-sm" href="/admin/settings?square=1">
+                  Squareから一覧を取得
+                </a>
+                <span class="muted small">アクセストークン設定済みなら、ロケーションとサービスをプルダウンで選べます</span>
+              </div>
+              <p class="settings-note bordered">
+                サービスが複数ある場合は、<strong>一番短い時間のサービス</strong>を選んでください（例:
+                「4時間」と「1日」なら「4時間」）。短い方を選ぶと、部分的に空いている日も正しく「空きあり」と表示されます。選ぶのは1つだけで、同じスペースを使う他のサービスの予約も空き状況に反映されます。
+                メールの差出人アドレス・ResendのAPIキー・Squareのアクセストークンはサーバー側の環境変数（RESEND_API_KEY / NOTIFY_EMAIL_FROM / SQUARE_ACCESS_TOKEN）で設定します。
+              </p>
+            </div>
+          </div>
+        </div>
       </form>
 
       <h2>今すぐ同期</h2>
-      <form class="card card-pad" method="post" action="/admin/settings/sync">
-        <p class="small">
-          Squareから最新の空き枠を今すぐ取得します（通常は15分ごとに自動取得）。設定直後の結合確認に使えます。
-        </p>
-        <button class="btn" type="submit">
-          今すぐ同期する
-        </button>
-      </form>
+      <div class="dash-panel">
+        <form class="settings-card-body" method="post" action="/admin/settings/sync">
+          <p class="settings-note">
+            Squareから最新の空き枠を今すぐ取得します（通常は15分ごとに自動取得）。設定直後の結合確認に使えます。
+          </p>
+          <div class="settings-actions">
+            <button class="btn btn-primary" type="submit">
+              今すぐ同期する
+            </button>
+          </div>
+        </form>
+      </div>
     </Layout>
   );
 });

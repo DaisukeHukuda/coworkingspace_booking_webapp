@@ -1,6 +1,6 @@
-// UIリスタイル Task R1: デザイントークン・共通パーツ・管理シェル・ログイン画面（§1〜§3, §5-1, §12）
-// 会員ページ・ダッシュボード・各管理ページの画面固有スタイルは後続タスク（R2〜R5）で置換予定。
-// 旧スタイルはファイル末尾の「旧スタイル」マーカー以降に維持している。
+// UIリスタイル（Claude Designハンドオフ）。R1〜R5で全9画面をリスタイル完了（§1〜§14）。
+// ファイル末尾の「旧スタイル」は、restyle前から複数画面で使われ続けている汎用ユーティリティ（.muted/.small）のみ。
+// 個別画面でしか使われないクラスはR5で全て新デザインのクラスに置換済み。
 export const STYLE_CSS = `
 :root{
   /* 面 */
@@ -363,10 +363,48 @@ h2 { font: 900 16px/1.3 var(--font-sans); letter-spacing: .03em; color: var(--in
 .closed-date { flex: none; width: 150px; font: 700 14px/1.5 var(--font-sans); letter-spacing: .02em; color: var(--ink); }
 .closed-reason { flex: 1; min-width: 0; font: 400 12.5px/1.6 var(--font-sans); letter-spacing: .03em; color: var(--ink-3); }
 
+/* ==== メール文面（§10） ==== */
+.mail-tags { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 18px; }
+.mail-tag { display: inline-flex; align-items: baseline; gap: 7px; padding: 5px 10px; border: 1px solid var(--line); background: #fff; }
+.mail-tag .tag { font: 700 12.5px var(--font-mono); color: var(--cobalt); }
+.mail-tag .desc { font: 400 11.5px/1.5 var(--font-sans); color: var(--ink-3); }
+
+.mail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+@media (max-width: 1100px) {
+  .mail-grid { grid-template-columns: 1fr; }
+}
+.mail-card { border: 1px solid var(--line); background: #fff; }
+.mail-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.mail-card-head.is-staff { background: var(--off-bg); }
+.mail-card-head .title { font: 900 15px/1.3 var(--font-sans); letter-spacing: .03em; color: var(--ink); }
+.mail-card-head .to { flex: none; font: 700 10.5px/1.4 var(--font-mono); letter-spacing: .14em; color: var(--ink-3); }
+.mail-card-body { padding: 13px 14px 15px; }
+.mail-field { display: block; margin-bottom: 11px; }
+.mail-field:last-child { margin-bottom: 0; }
+.mail-field > span { display: block; margin-bottom: 4px; font: 700 11px/1.6 var(--font-sans); letter-spacing: .06em; color: var(--ink-2); }
+.mail-field input { display: block; box-sizing: border-box; width: 100%; height: 38px; padding: 0 10px; border: 1px solid var(--line); font: 400 13px/1.5 var(--font-sans); letter-spacing: .02em; color: var(--ink); background: #fff; }
+.mail-field textarea { display: block; box-sizing: border-box; width: 100%; min-height: 132px; padding: 11px; border: 1px solid var(--line); font: 400 12.5px/1.9 var(--font-sans); letter-spacing: .02em; color: var(--ink); background: #fff; resize: vertical; }
+.mail-submit { margin-top: 16px; }
+
+/* ==== 設定（§11） ==== */
+.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+@media (max-width: 1100px) {
+  .settings-grid { grid-template-columns: 1fr; }
+}
+.settings-card-body { padding: 14px; display: flex; flex-direction: column; gap: 13px; }
+.settings-row { display: flex; gap: 12px; }
+.settings-field { display: block; }
+.settings-field > span { display: block; margin-bottom: 4px; font: 700 11.5px/1.6 var(--font-sans); letter-spacing: .05em; color: var(--ink-2); }
+.settings-field > span .hint { font-weight: 400; color: var(--ink-3); }
+.settings-field input, .settings-field select { display: block; box-sizing: border-box; width: 100%; height: 40px; padding: 0 11px; border: 1px solid var(--line); font: 400 13.5px var(--font-mono); color: var(--ink); background: #fff; }
+.settings-field select { font: 600 14px var(--font-mono); }
+.settings-row .settings-field.w-sm { flex: none; width: 150px; }
+.settings-row .settings-field.grow { flex: 1; }
+.settings-note { margin: 0; font: 400 11.5px/1.8 var(--font-sans); letter-spacing: .03em; color: var(--ink-3); }
+.settings-note.bordered { border-top: 1px solid var(--line-2); padding-top: 11px; }
+.settings-actions { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; }
+
 /* ==== 旧スタイル（後続タスクで置換・削除予定） ==== */
-.field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
-.field label { font-size: 13px; color: #565f75; }
-.field input, .field select, .field textarea { padding: 8px 10px; border: 1px solid #c6c6bb; border-radius: 6px; font-size: 15px; background: #fff; }
 .muted { color: #7a8299; }
 .small { font-size: 13px; }
 `;

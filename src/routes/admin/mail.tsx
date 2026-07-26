@@ -18,6 +18,24 @@ const ERROR_MESSAGES: Record<string, string> = {
 const SUBJECT_MAX = 200;
 const BODY_MAX = 4000;
 
+// カード見出し行の宛先表示（UI専用の区分。notes.md §逸脱4: キャンセル通知もスタッフ宛として扱う）
+const MAIL_TYPE_AUDIENCE: Record<(typeof MAIL_TEMPLATE_TYPES)[number], 'staff' | 'member'> = {
+  requested: 'staff',
+  requested_member: 'member',
+  cancelled: 'staff',
+  confirmed: 'member',
+  declined: 'member'
+};
+
+const MAIL_TAGS: { tag: string; desc: string }[] = [
+  { tag: '{会員名}', desc: '会員の名前・「様」は文面側で付ける' },
+  { tag: '{会員種別}', desc: '月額会員/回数券' },
+  { tag: '{日時}', desc: '利用日時' },
+  { tag: '{会員メモ}', desc: '会員のひとことメモ' },
+  { tag: '{スタッフメモ}', desc: '確定時のひとこと・否認理由' },
+  { tag: '{管理画面リンク}', desc: 'スタッフ宛メール用' }
+];
+
 mailPage.get('/', async (c) => {
   const okParam = c.req.query('ok');
   const errorParam = c.req.query('error');
@@ -26,45 +44,61 @@ mailPage.get('/', async (c) => {
   return c.html(
     <Layout title="メール文面 | TORCH 会員予約" active="/admin/mail">
       <div class="page-head">
-        <span class="eyebrow">Mail</span>
+        <span class="eyebrow">Mail Templates</span>
         <h1>メール文面</h1>
       </div>
       {okParam && OK_MESSAGES[okParam] && <p class="msg-ok">{OK_MESSAGES[okParam]}</p>}
       {errorParam && ERROR_MESSAGES[errorParam] && <p class="msg-error">{ERROR_MESSAGES[errorParam]}</p>}
 
       <p class="small">
-        空欄のまま保存すると標準の文面が使われます。文面には次のタグが書けます（送信時に実際の内容へ置き換わります）:
+        空欄のまま保存すると標準の文面が使われます。文面には次のタグが書けます（送信時に実際の内容へ置き換わります）。
       </p>
-      <p class="small muted">
-        {'{会員名}'}（会員の名前・「様」は文面側で付ける） {'{会員種別}'}（月額会員/回数券） {'{日時}'}（利用日時）{' '}
-        {'{会員メモ}'}（会員のひとことメモ） {'{スタッフメモ}'}（確定時のひとこと・否認理由） {'{管理画面リンク}'}（スタッフ宛メール用）
-      </p>
-
-      <form class="card card-pad" method="post" action="/admin/mail">
-        {MAIL_TEMPLATE_TYPES.map((t) => (
-          <>
-            <h2>{MAIL_TYPE_LABELS[t]}</h2>
-            <div class="field">
-              <label>件名（空欄なら標準の件名）</label>
-              <input
-                type="text"
-                name={`${t}_subject`}
-                value={templates[t].subject}
-                maxlength={SUBJECT_MAX}
-                placeholder={DEFAULT_MAIL_PREVIEWS[t].subject}
-              />
-            </div>
-            <div class="field">
-              <label>本文（空欄なら標準の本文）</label>
-              <textarea name={`${t}_body`} rows={8} maxlength={BODY_MAX} placeholder={DEFAULT_MAIL_PREVIEWS[t].body}>
-                {templates[t].body}
-              </textarea>
-            </div>
-          </>
+      <div class="mail-tags">
+        {MAIL_TAGS.map((t) => (
+          <span class="mail-tag">
+            <span class="tag">{t.tag}</span>
+            <span class="desc">{t.desc}</span>
+          </span>
         ))}
-        <button class="btn btn-primary btn-lg" type="submit">
-          保存
-        </button>
+      </div>
+
+      <form method="post" action="/admin/mail">
+        <div class="mail-grid">
+          {MAIL_TEMPLATE_TYPES.map((t) => {
+            const isStaff = MAIL_TYPE_AUDIENCE[t] === 'staff';
+            return (
+              <div class="mail-card">
+                <div class={`mail-card-head${isStaff ? ' is-staff' : ''}`}>
+                  <span class="title">{MAIL_TYPE_LABELS[t]}</span>
+                  <span class="to">{isStaff ? 'TO STAFF' : 'TO MEMBER'}</span>
+                </div>
+                <div class="mail-card-body">
+                  <label class="mail-field">
+                    <span>件名（空欄なら標準の件名）</span>
+                    <input
+                      type="text"
+                      name={`${t}_subject`}
+                      value={templates[t].subject}
+                      maxlength={SUBJECT_MAX}
+                      placeholder={DEFAULT_MAIL_PREVIEWS[t].subject}
+                    />
+                  </label>
+                  <label class="mail-field">
+                    <span>本文（空欄なら標準の本文）</span>
+                    <textarea name={`${t}_body`} rows={8} maxlength={BODY_MAX} placeholder={DEFAULT_MAIL_PREVIEWS[t].body}>
+                      {templates[t].body}
+                    </textarea>
+                  </label>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div class="mail-submit">
+          <button class="btn btn-primary btn-lg" type="submit">
+            文面を保存する
+          </button>
+        </div>
         <p class="muted small" style="margin:12px 0 0">
           タグに対応する内容が空のとき（メモ未入力など）は、その部分が空欄のまま送られます。
         </p>
