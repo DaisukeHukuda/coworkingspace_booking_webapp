@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Bindings } from '../../types';
-import { isValidDate, currentJstDate, formatMD, WEEKDAY_LABELS } from '../../core/dates';
+import { isValidDate, currentJstDate, formatMD, weekdayOf } from '../../core/dates';
 import { Layout } from './ui';
 
 export const closed = new Hono<{ Bindings: Bindings }>();
@@ -28,61 +28,58 @@ closed.get('/', async (c) => {
       <div class="page-head">
         <span class="eyebrow">Closed Dates</span>
         <h1>受付停止日</h1>
-        <span class="sub muted">指定した日は会員のカレンダーで選択できなくなります（今日以降の分を表示）</span>
       </div>
+      <p class="closed-desc">
+        指定した日は会員のカレンダーで「停」と表示され、選択できなくなります（今日以降の分を表示）。
+      </p>
       {okParam && OK_MESSAGES[okParam] && <p class="msg-ok">{OK_MESSAGES[okParam]}</p>}
       {errorParam && ERROR_MESSAGES[errorParam] && <p class="msg-error">{ERROR_MESSAGES[errorParam]}</p>}
 
-      <form class="card card-pad" method="post" action="/admin/closed">
-        <div class="form-grid">
-          <div class="field">
-            <label>日付</label>
-            <input type="date" name="date" required />
+      <div class="closed-grid">
+        <div class="dash-panel">
+          <div class="dash-panel-head">
+            <span>停止日を追加</span>
           </div>
-          <div class="field">
-            <label>理由（任意・会員には表示されません）</label>
-            <input type="text" name="reason" maxlength={200} />
-          </div>
-          <button class="btn btn-primary" type="submit">
-            停止日にする
-          </button>
+          <form class="row-form" method="post" action="/admin/closed">
+            <label class="field-h w-date-lg">
+              <span>日付</span>
+              <input type="date" name="date" required />
+            </label>
+            <label class="field-h grow">
+              <span>理由（任意・会員には表示されません）</span>
+              <input type="text" name="reason" maxlength={200} />
+            </label>
+            <button class="btn btn-primary" type="submit">
+              停止日にする
+            </button>
+          </form>
         </div>
-      </form>
 
-      {rows.length === 0 ? (
-        <p class="muted" style="margin-top:16px">
-          受付停止日はありません。
-        </p>
-      ) : (
-        <div class="tbl-wrap" style="margin-top:16px">
-          <table class="tbl">
-            <thead>
-              <tr>
-                <th>日付</th>
-                <th>理由</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr>
-                  <td class="req-when">
-                    {formatMD(r.date)}（{WEEKDAY_LABELS[new Date(`${r.date}T00:00:00Z`).getUTCDay()]}）
-                  </td>
-                  <td class="small">{r.reason}</td>
-                  <td class="actions">
-                    <form method="post" action={`/admin/closed/${r.date}/delete`}>
-                      <button class="btn btn-sm" type="submit">
-                        解除
-                      </button>
-                    </form>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div class="dash-panel">
+          <div class="dash-panel-head">
+            <span>設定済みの停止日</span>
+            <span class="sub">{rows.length} 件</span>
+          </div>
+          {rows.length === 0 ? (
+            <p class="dash-panel-empty">受付停止日はありません。</p>
+          ) : (
+            rows.map((r) => (
+              <div class="closed-row">
+                <span class="closed-chip">停</span>
+                <span class="closed-date">
+                  {formatMD(r.date)}（{weekdayOf(r.date)}）
+                </span>
+                <span class="closed-reason">{r.reason}</span>
+                <form method="post" action={`/admin/closed/${r.date}/delete`}>
+                  <button class="btn btn-sm btn-ghost" type="submit">
+                    解除
+                  </button>
+                </form>
+              </div>
+            ))
+          )}
         </div>
-      )}
+      </div>
     </Layout>
   );
 });

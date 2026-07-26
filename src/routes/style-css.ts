@@ -317,20 +317,56 @@ h2 { font: 900 16px/1.3 var(--font-sans); letter-spacing: .03em; color: var(--in
 .req-filter .w-date { width: 150px; }
 .req-filter .count { margin-left: auto; font: 400 12px/1.5 var(--font-mono); letter-spacing: .06em; color: var(--ink-3); }
 
+/* ==== 会員管理（§8） ==== */
+.mem-tbl-wrap { border: 1px solid var(--line); background: #fff; overflow-x: auto; margin-bottom: 22px; }
+.mem-tbl { width: 100%; min-width: 1000px; border-collapse: collapse; }
+.mem-tbl thead th { background: var(--navy); color: rgba(255,255,255,.85); font: 700 11.5px/1.4 var(--font-sans); letter-spacing: .1em; text-align: left; padding: 9px 14px; border: none; }
+.mem-tbl tbody td { padding: 9px 14px; border-bottom: 1px solid var(--line-2); font: 400 13px/1.5 var(--font-sans); letter-spacing: .03em; color: var(--ink-2); vertical-align: middle; }
+.mem-tbl tbody tr:last-child td { border-bottom: 0; }
+.mem-tbl tbody tr:nth-child(even) { background: var(--paper-2); }
+.mem-tbl .col-name { width: 190px; font: 600 14px/1.5 var(--font-sans); letter-spacing: .03em; color: var(--ink); }
+.mem-tbl .col-name.is-dim { color: var(--ink-4); }
+.mem-tbl .col-type { width: 110px; }
+.mem-tbl .col-email { width: 250px; font: 400 12.5px/1.5 var(--font-mono); letter-spacing: .01em; color: var(--ink-2); }
+.mem-tbl .col-state { width: 90px; }
+.mem-tbl .col-mactions { width: 170px; }
+.mem-link { display: block; width: 100%; height: 32px; line-height: 30px; padding: 0 9px; box-sizing: border-box; border: 1px solid var(--line-4); background: var(--paper-2); font: 400 11.5px/1 var(--font-mono); color: var(--ink-3); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.mem-actions { display: flex; gap: 7px; }
+.btn-ghost { border-color: var(--line-4); color: var(--ink-2); }
+.btn-ghost:hover { background: var(--paper); }
+
+/* ==== 横並び入力フォーム：新規登録・停止日を追加（§8, §9） ==== */
+.row-form { display: flex; align-items: flex-end; gap: 12px; padding: 14px; flex-wrap: wrap; }
+.row-form .field-h { display: flex; flex-direction: column; gap: 4px; }
+.row-form .field-h > span { font: 700 11px/1.6 var(--font-sans); letter-spacing: .06em; color: var(--ink-2); }
+.row-form .field-h input, .row-form .field-h select { height: 38px; padding: 0 10px; border: 1px solid var(--line); font: 600 13px/1 var(--font-sans); color: var(--ink); background: #fff; }
+.row-form .field-h.grow { flex: 1; }
+.row-form .w-name { width: 200px; }
+.row-form .w-type { width: 190px; }
+.row-form .w-date-lg { width: 170px; }
+
+/* 会員編集フォーム（縦積み） */
+.field-v { display: block; margin-bottom: 14px; }
+.field-v > span { display: block; margin-bottom: 5px; font: 700 11.5px/1.6 var(--font-sans); letter-spacing: .06em; color: var(--ink-2); }
+.field-v input, .field-v select { display: block; width: 100%; height: 42px; padding: 0 12px; border: 1px solid var(--line); font: 400 14px/1.5 var(--font-sans); color: var(--ink); background: #fff; }
+.field-v-check { display: flex; align-items: center; gap: 8px; margin: 14px 0 18px; font: 400 13px/1.6 var(--font-sans); letter-spacing: .03em; color: var(--ink-2); }
+
+/* ==== 受付停止日（§9） ==== */
+.closed-desc { margin: 4px 0 18px; font: 400 13px/1.8 var(--font-sans); letter-spacing: .03em; color: var(--ink-2); }
+.closed-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+@media (max-width: 1100px) {
+  .closed-grid { grid-template-columns: 1fr; }
+}
+.closed-row { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-bottom: 1px solid var(--line-2); }
+.closed-row:last-child { border-bottom: 0; }
+.closed-chip { flex: none; width: 44px; height: 28px; box-sizing: border-box; background: var(--paper-4); border: 1px solid var(--line-4); font: 700 12px/26px var(--font-sans); text-align: center; color: var(--ink-2); }
+.closed-date { flex: none; width: 150px; font: 700 14px/1.5 var(--font-sans); letter-spacing: .02em; color: var(--ink); }
+.closed-reason { flex: 1; min-width: 0; font: 400 12.5px/1.6 var(--font-sans); letter-spacing: .03em; color: var(--ink-3); }
+
 /* ==== 旧スタイル（後続タスクで置換・削除予定） ==== */
 .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
 .field label { font-size: 13px; color: #565f75; }
 .field input, .field select, .field textarea { padding: 8px 10px; border: 1px solid #c6c6bb; border-radius: 6px; font-size: 15px; background: #fff; }
-.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; align-items: end; }
-.check { font-size: 14px; }
-.tbl-wrap { overflow-x: auto; }
-.tbl { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #dcdcd2; border-radius: 10px; overflow: hidden; }
-.tbl th, .tbl td { padding: 10px 12px; border-bottom: 1px solid #ecece4; text-align: left; font-size: 14px; vertical-align: middle; }
-.tbl th { background: #f8f8f3; font-size: 12px; color: #565f75; }
-.row-muted { opacity: .5; }
-.copy-link input { width: 100%; min-width: 260px; font-size: 12px; padding: 4px 6px; border: 1px solid #c6c6bb; border-radius: 4px; color: #565f75; }
 .muted { color: #7a8299; }
 .small { font-size: 13px; }
-.actions form { display: inline; }
-.req-when { font-weight: 700; }
 `;

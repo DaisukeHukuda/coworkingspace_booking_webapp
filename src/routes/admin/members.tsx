@@ -37,55 +37,62 @@ members.get('/', async (c) => {
 
   const result = await c.env.DB.prepare('SELECT * FROM members ORDER BY id').all<MemberRow>();
   const rows = result.results;
+  const activeCount = rows.filter((m) => m.is_active === 1).length;
+  const inactiveCount = rows.length - activeCount;
 
   return c.html(
     <Layout title="会員管理 | TORCH 会員予約" active="/admin/members">
       <div class="page-head">
         <span class="eyebrow">Members</span>
-        <h1>会員管理</h1>
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px">
+          <h1>会員管理</h1>
+          <span class="sub">
+            有効 {activeCount} 名 / 停止 {inactiveCount} 名
+          </span>
+        </div>
       </div>
       {okParam && OK_MESSAGES[okParam] && <p class="msg-ok">{OK_MESSAGES[okParam]}</p>}
       {errorParam && ERROR_MESSAGES[errorParam] && <p class="msg-error">{ERROR_MESSAGES[errorParam]}</p>}
 
-      <div class="tbl-wrap">
-        <table class="tbl">
+      <div class="mem-tbl-wrap">
+        <table class="mem-tbl">
           <thead>
             <tr>
-              <th>名前</th>
-              <th>種別</th>
-              <th>メール</th>
-              <th>状態</th>
+              <th class="col-name">名前</th>
+              <th class="col-type">種別</th>
+              <th class="col-email">メール</th>
+              <th class="col-state">状態</th>
               <th>専用リンク（LINEで本人にだけ送る）</th>
-              <th></th>
+              <th class="col-mactions"></th>
             </tr>
           </thead>
           <tbody>
             {rows.map((m) => (
-              <tr class={m.is_active ? undefined : 'row-muted'}>
-                <td>{m.name}</td>
-                <td>
+              <tr>
+                <td class={`col-name${m.is_active ? '' : ' is-dim'}`}>{m.name}</td>
+                <td class="col-type">
                   <span class={TYPE_BADGE_CLASSES[m.member_type]}>{TYPE_LABELS[m.member_type]}</span>
                 </td>
-                <td>{m.email}</td>
-                <td>
+                <td class="col-email">{m.email}</td>
+                <td class="col-state">
                   <span class={`badge ${m.is_active ? 'badge-on' : 'badge-off'}`}>
-                    {m.is_active ? '有効' : '無効'}
+                    {m.is_active ? '有効' : '停止'}
                   </span>
                 </td>
                 <td>
-                  <span class="copy-link">
-                    <input type="text" readonly value={`${origin}/m/${m.token}`} />
-                  </span>
+                  <input class="mem-link" type="text" readonly value={`${origin}/m/${m.token}`} />
                 </td>
-                <td class="actions">
-                  <a class="btn btn-sm" href={`/admin/members/${m.id}/edit`}>
-                    編集
-                  </a>{' '}
-                  <form method="post" action={`/admin/members/${m.id}/reissue`}>
-                    <button class="btn btn-sm" type="submit">
-                      再発行
-                    </button>
-                  </form>
+                <td class="col-mactions">
+                  <div class="mem-actions">
+                    <a class="btn btn-sm" href={`/admin/members/${m.id}/edit`}>
+                      編集
+                    </a>
+                    <form method="post" action={`/admin/members/${m.id}/reissue`}>
+                      <button class="btn btn-sm btn-ghost" type="submit">
+                        再発行
+                      </button>
+                    </form>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -94,27 +101,25 @@ members.get('/', async (c) => {
       </div>
 
       <h2>新規登録</h2>
-      <form class="card card-pad" method="post" action="/admin/members">
-        <div class="form-grid">
-          <div class="field">
-            <label>名前</label>
-            <input type="text" name="name" required />
-          </div>
-          <div class="field">
-            <label>メールアドレス（確定通知の送り先）</label>
-            <input type="email" name="email" required />
-          </div>
-          <div class="field">
-            <label>種別</label>
-            <select name="member_type">
-              <option value="monthly">月額会員</option>
-              <option value="ticket">回数券</option>
-            </select>
-          </div>
-          <button class="btn btn-primary" type="submit">
-            登録してリンク発行
-          </button>
-        </div>
+      <form class="card row-form" method="post" action="/admin/members">
+        <label class="field-h w-name">
+          <span>名前</span>
+          <input type="text" name="name" required />
+        </label>
+        <label class="field-h grow">
+          <span>メールアドレス（確定通知の送り先）</span>
+          <input type="email" name="email" required />
+        </label>
+        <label class="field-h w-type">
+          <span>種別</span>
+          <select name="member_type">
+            <option value="monthly">月額会員</option>
+            <option value="ticket">回数券</option>
+          </select>
+        </label>
+        <button class="btn btn-primary" type="submit">
+          登録してリンク発行
+        </button>
       </form>
     </Layout>
   );
@@ -160,32 +165,28 @@ members.get('/:id/edit', async (c) => {
       {errorParam && ERROR_MESSAGES[errorParam] && <p class="msg-error">{ERROR_MESSAGES[errorParam]}</p>}
 
       <form class="card card-pad" method="post" action={`/admin/members/${member.id}`}>
-        <div class="form-grid">
-          <div class="field">
-            <label>名前</label>
-            <input type="text" name="name" value={member.name} required />
-          </div>
-          <div class="field">
-            <label>メールアドレス</label>
-            <input type="email" name="email" value={member.email} required />
-          </div>
-          <div class="field">
-            <label>種別</label>
-            <select name="member_type">
-              <option value="monthly" selected={member.member_type === 'monthly'}>
-                月額会員
-              </option>
-              <option value="ticket" selected={member.member_type === 'ticket'}>
-                回数券
-              </option>
-            </select>
-          </div>
-        </div>
-        <div class="field" style="margin-top:12px">
-          <label class="check">
-            <input type="checkbox" name="is_active" value="1" checked={member.is_active === 1} /> 有効（外すとこの会員の専用リンクが使えなくなる）
-          </label>
-        </div>
+        <label class="field-v">
+          <span>名前</span>
+          <input type="text" name="name" value={member.name} required />
+        </label>
+        <label class="field-v">
+          <span>メールアドレス</span>
+          <input type="email" name="email" value={member.email} required />
+        </label>
+        <label class="field-v">
+          <span>種別</span>
+          <select name="member_type">
+            <option value="monthly" selected={member.member_type === 'monthly'}>
+              月額会員
+            </option>
+            <option value="ticket" selected={member.member_type === 'ticket'}>
+              回数券
+            </option>
+          </select>
+        </label>
+        <label class="field-v-check">
+          <input type="checkbox" name="is_active" value="1" checked={member.is_active === 1} /> 有効（外すとこの会員の専用リンクが使えなくなる）
+        </label>
         <button class="btn btn-primary btn-lg" type="submit">
           更新
         </button>
