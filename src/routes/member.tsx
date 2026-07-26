@@ -359,7 +359,7 @@ member.get('/:token', async (c) => {
                       </select>
                     </label>
                   </div>
-                  <p class="form-hint">9:00〜18:00 の間で、30分きざみでお選びいただけます。</p>
+                  <p class="form-hint">{settings.openStart}〜{settings.openEnd} の間で、30分きざみでお選びいただけます。</p>
                   <label class="form-field form-field-note">
                     <span>スタッフへのひとこと（任意・人数やご用件など）</span>
                     <textarea name="note" maxlength={NOTE_MAX}></textarea>
