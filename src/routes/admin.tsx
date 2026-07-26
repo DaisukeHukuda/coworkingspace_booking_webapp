@@ -24,23 +24,27 @@ const LoginPage = (props: { error: string | null }) => (
       <link rel="stylesheet" href="/style.css" />
     </head>
     <body>
-      <main class="login-wrap">
-        <form class="login-card" method="post" action="/admin/login">
-          <div class="brand-lg">
-            TORCH<small>Coworking Space</small>
+      <main class="login-shell">
+        <div class="login-box">
+          <div class="login-brand">
+            <div class="t1">TORCH</div>
+            <div class="t2">COWORKING SPACE</div>
           </div>
-          {props.error && <p class="msg-error">{props.error}</p>}
-          <div class="field" style="margin:24px 0 16px">
-            <label for="pw">パスワード</label>
-            <input type="password" id="pw" name="password" autocomplete="current-password" autofocus required />
+          <div class="login-body">
+            {props.error && <p class="msg-error">{props.error}</p>}
+            <p class="login-role">スタッフ管理画面</p>
+            <form method="post" action="/admin/login">
+              <div class="login-field">
+                <label for="pw">パスワード</label>
+                <input type="password" id="pw" name="password" autocomplete="current-password" autofocus required />
+              </div>
+              <button class="login-submit" type="submit">
+                ログイン
+              </button>
+            </form>
+            <p class="login-note">会員のみなさまは、LINEでお送りした専用リンクからご利用ください。</p>
           </div>
-          <button class="btn btn-primary btn-lg btn-block" type="submit">
-            ログイン
-          </button>
-          <p class="muted small" style="margin:16px 0 0">
-            スタッフ専用の管理画面です。
-          </p>
-        </form>
+        </div>
       </main>
     </body>
   </html>

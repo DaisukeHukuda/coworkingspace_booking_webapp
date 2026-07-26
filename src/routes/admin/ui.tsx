@@ -20,25 +20,24 @@ export const Layout = (props: { title: string; active?: string; children: Child 
       <link rel="stylesheet" href="/style.css" />
     </head>
     <body>
-      <header class="site-header">
-        <div class="inner">
-          <a class="brand" href="/admin">
-            TORCH<small>Coworking Space</small>
-          </a>
-          <nav class="nav">
-            {NAV_ITEMS.map((item) => (
-              <a href={item.href} class={item.href === props.active ? 'is-active' : undefined}>
-                {item.label}
-              </a>
-            ))}
-          </nav>
-          <div class="header-actions">
-            <form method="post" action="/admin/logout">
-              <button class="btn btn-sm btn-onnavy" type="submit">
-                ログアウト
-              </button>
-            </form>
-          </div>
+      <header class="admin-bar">
+        <a class="admin-logo" href="/admin">
+          <span class="t1">TORCH</span>
+          <span class="t2">COWORKING SPACE</span>
+        </a>
+        <nav class="admin-nav">
+          {NAV_ITEMS.map((item) => (
+            <a href={item.href} class={item.href === props.active ? 'is-current' : undefined}>
+              {item.label}
+            </a>
+          ))}
+        </nav>
+        <div class="admin-logout">
+          <form method="post" action="/admin/logout">
+            <button class="btn btn-sm btn-onnavy" type="submit">
+              ログアウト
+            </button>
+          </form>
         </div>
       </header>
       <main class="page">{props.children}</main>
