@@ -324,10 +324,12 @@ h2 { font: 900 16px/1.3 var(--font-sans); letter-spacing: .03em; color: var(--in
 .mem-tbl tbody td { padding: 9px 14px; border-bottom: 1px solid var(--line-2); font: 400 13px/1.5 var(--font-sans); letter-spacing: .03em; color: var(--ink-2); vertical-align: middle; }
 .mem-tbl tbody tr:last-child td { border-bottom: 0; }
 .mem-tbl tbody tr:nth-child(even) { background: var(--paper-2); }
-.mem-tbl .col-name { width: 190px; font: 600 14px/1.5 var(--font-sans); letter-spacing: .03em; color: var(--ink); }
-.mem-tbl .col-name.is-dim { color: var(--ink-4); }
+.mem-tbl .col-name { width: 190px; }
 .mem-tbl .col-type { width: 110px; }
-.mem-tbl .col-email { width: 250px; font: 400 12.5px/1.5 var(--font-mono); letter-spacing: .01em; color: var(--ink-2); }
+.mem-tbl .col-email { width: 250px; }
+.mem-tbl td.col-name { font: 600 14px/1.5 var(--font-sans); letter-spacing: .03em; color: var(--ink); }
+.mem-tbl td.col-name.is-dim { color: var(--ink-4); }
+.mem-tbl td.col-email { font: 400 12.5px/1.5 var(--font-mono); letter-spacing: .01em; color: var(--ink-2); }
 .mem-tbl .col-state { width: 90px; }
 .mem-tbl .col-mactions { width: 170px; }
 .mem-link { display: block; width: 100%; height: 32px; line-height: 30px; padding: 0 9px; box-sizing: border-box; border: 1px solid var(--line-4); background: var(--paper-2); font: 400 11.5px/1 var(--font-mono); color: var(--ink-3); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
