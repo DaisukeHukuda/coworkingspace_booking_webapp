@@ -250,7 +250,7 @@ member.get('/:token', async (c) => {
             if (d === null) return <div class="cal-cell cal-empty"></div>;
             const dayNum = String(Number(d.slice(8, 10)));
             const mark = markByDate.get(d);
-            const dot = mark ? <span class={`cal-dot dot-${mark}`}></span> : null;
+            const dot = mark ? <span class={`cal-dot dot-${mark}`} title={REQUEST_STATUS_LABELS[mark]}></span> : null;
 
             if (d < today || d > maxDate) {
               return (
@@ -299,7 +299,7 @@ member.get('/:token', async (c) => {
             <span class="cal-dot dot-declined"></span>否認
           </span>
           <span class="legend-item">
-            <span class="legend-chip legend-stop">停</span>＝受付停止日
+            <span class="legend-chip">停</span>＝受付停止日
           </span>
           <span class="legend-item">
             <span class="legend-chip legend-x">×</span>＝満席
