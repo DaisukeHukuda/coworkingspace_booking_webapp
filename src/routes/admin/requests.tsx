@@ -61,12 +61,16 @@ requests.get('/', async (c) => {
     const starts = cachedByDate.get(r.date);
     return starts !== undefined && !starts.some((t) => t >= r.start_time && t < r.end_time);
   };
+  const hasWarning = rows.some(mayBeTaken);
 
   return c.html(
     <Layout title="承認待ち | TORCH 会員予約" active="/admin/requests">
       <div class="page-head">
         <span class="eyebrow">Requests</span>
-        <h1>承認待ち</h1>
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px">
+          <h1>承認待ち</h1>
+          {rows.length > 0 && <span class="req-head-tag">{rows.length} 件が対応待ちです</span>}
+        </div>
       </div>
       {okParam && OK_MESSAGES[okParam] && <p class="msg-ok">{OK_MESSAGES[okParam]}</p>}
       {errorParam && ERROR_MESSAGES[errorParam] && <p class="msg-error">{ERROR_MESSAGES[errorParam]}</p>}
@@ -74,52 +78,68 @@ requests.get('/', async (c) => {
       {rows.length === 0 ? (
         <p class="muted">承認待ちのリクエストはありません。</p>
       ) : (
-        <div class="tbl-wrap">
-          <table class="tbl">
-            <thead>
-              <tr>
-                <th>利用日時</th>
-                <th>会員</th>
-                <th>メモ</th>
-                <th>申請日時</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
+        <>
+          <div class="req-tbl-wrap">
+            <table class="req-tbl">
+              <thead>
                 <tr>
-                  <td class="req-when">
-                    {formatMD(r.date)}（{weekdayOf(r.date)}）{r.start_time}〜{r.end_time}
-                    {mayBeTaken(r) && (
-                      <div>
-                        <span class="badge badge-warn">⚠ Square側で埋まった可能性</span>
-                      </div>
-                    )}
-                  </td>
-                  <td>
-                    {r.member_name}{' '}
-                    <span class={TYPE_BADGE_CLASSES[r.member_type]}>{TYPE_LABELS[r.member_type]}</span>
-                  </td>
-                  <td class="small">{r.member_note}</td>
-                  <td class="small muted">{r.created_at.slice(0, 16).replace('T', ' ')}</td>
-                  <td class="actions">
-                    <form method="post" action={`/admin/requests/${r.id}/confirm`}>
-                      <button class="btn btn-sm btn-primary" type="submit">
-                        確定
-                      </button>
-                    </form>{' '}
-                    <form method="post" action={`/admin/requests/${r.id}/decline`}>
-                      <input type="text" name="admin_note" placeholder="否認理由（任意）" maxlength={NOTE_MAX} />{' '}
-                      <button class="btn btn-sm btn-danger" type="submit">
-                        否認
-                      </button>
-                    </form>
-                  </td>
+                  <th class="col-when">利用日時</th>
+                  <th class="col-member">会員</th>
+                  <th>メモ</th>
+                  <th class="col-applied">申請日時</th>
+                  <th class="col-actions">操作</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr>
+                    <td class="col-when">
+                      <div class="req-when-date">
+                        {formatMD(r.date)}（{weekdayOf(r.date)}）
+                      </div>
+                      <div class="req-when-time">
+                        {r.start_time}〜{r.end_time}
+                      </div>
+                      {mayBeTaken(r) && (
+                        <div>
+                          <span class="badge badge-warn">△ Square側で埋まった可能性</span>
+                        </div>
+                      )}
+                    </td>
+                    <td class="col-member">
+                      <div class="req-member-row">
+                        <span class="name">{r.member_name}</span>
+                        <span class={TYPE_BADGE_CLASSES[r.member_type]}>{TYPE_LABELS[r.member_type]}</span>
+                      </div>
+                    </td>
+                    <td>{r.member_note}</td>
+                    <td class="col-applied">{r.created_at.slice(0, 16).replace('T', ' ')}</td>
+                    <td class="col-actions">
+                      <div class="req-actions">
+                        <form method="post" action={`/admin/requests/${r.id}/confirm`}>
+                          <button class="btn btn-sm btn-primary" type="submit">
+                            確定
+                          </button>
+                        </form>
+                        <form method="post" action={`/admin/requests/${r.id}/decline`}>
+                          <input class="req-reason" type="text" name="admin_note" placeholder="否認理由（任意）" maxlength={NOTE_MAX} />
+                          <button class="btn btn-sm btn-danger" type="submit">
+                            否認
+                          </button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {hasWarning && (
+            <p class="req-foot-note">
+              「Square側で埋まった可能性」は、リクエスト受付後にSquare側の予約が入り、同じ時間帯が満席になった行に付きます。確定前にご確認ください。
+            </p>
+          )}
+        </>
       )}
     </Layout>
   );
@@ -192,42 +212,41 @@ requests.get('/all', async (c) => {
         <h1>リクエスト一覧</h1>
       </div>
 
-      <form class="card card-pad" method="get" action="/admin/requests/all">
-        <div class="form-grid">
-          <div class="field">
-            <label>状態</label>
-            <select name="status">
-              <option value="">すべて</option>
-              {STATUS_FILTERS.map((s) => (
-                <option value={s} selected={status === s}>
-                  {REQUEST_STATUS_LABELS[s]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div class="field">
-            <label>会員</label>
-            <select name="member_id">
-              <option value="">すべて</option>
-              {membersResult.results.map((m) => (
-                <option value={m.id} selected={memberId === m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div class="field">
-            <label>利用日 from</label>
-            <input type="date" name="from" value={from ?? ''} />
-          </div>
-          <div class="field">
-            <label>利用日 to</label>
-            <input type="date" name="to" value={to ?? ''} />
-          </div>
-          <button class="btn btn-primary" type="submit">
-            絞り込む
-          </button>
-        </div>
+      <form class="card req-filter" method="get" action="/admin/requests/all">
+        <label class="field-sm w-status">
+          <span>状態</span>
+          <select name="status">
+            <option value="">すべて</option>
+            {STATUS_FILTERS.map((s) => (
+              <option value={s} selected={status === s}>
+                {REQUEST_STATUS_LABELS[s]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label class="field-sm w-member">
+          <span>会員</span>
+          <select name="member_id">
+            <option value="">すべて</option>
+            {membersResult.results.map((m) => (
+              <option value={m.id} selected={memberId === m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label class="field-sm w-date">
+          <span>利用日 from</span>
+          <input type="date" name="from" value={from ?? ''} />
+        </label>
+        <label class="field-sm w-date">
+          <span>利用日 to</span>
+          <input type="date" name="to" value={to ?? ''} />
+        </label>
+        <button class="btn btn-primary" type="submit">
+          絞り込む
+        </button>
+        <span class="count">{rows.length} 件を表示</span>
       </form>
 
       {rows.length === 0 ? (
@@ -235,32 +254,34 @@ requests.get('/all', async (c) => {
           条件に合うリクエストはありません。
         </p>
       ) : (
-        <div class="tbl-wrap" style="margin-top:16px">
-          <table class="tbl">
+        <div class="req-tbl-wrap" style="margin-top:16px">
+          <table class="req-tbl">
             <thead>
               <tr>
-                <th>利用日時</th>
-                <th>会員</th>
-                <th>状態</th>
-                <th>メモ</th>
-                <th>スタッフメモ</th>
+                <th class="col-when-lg">利用日時</th>
+                <th class="col-member-lg">会員</th>
+                <th class="col-status">状態</th>
+                <th>会員メモ</th>
+                <th class="col-staffnote">スタッフメモ</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr class={r.status === 'cancelled' || r.status === 'declined' ? 'row-muted' : undefined}>
-                  <td class="req-when">
+                <tr class={r.status === 'cancelled' ? 'is-muted' : undefined}>
+                  <td class="col-when-lg">
                     {formatMD(r.date)}（{weekdayOf(r.date)}）{r.start_time}〜{r.end_time}
                   </td>
-                  <td>
-                    {r.member_name}{' '}
-                    <span class={TYPE_BADGE_CLASSES[r.member_type]}>{TYPE_LABELS[r.member_type]}</span>
+                  <td class="col-member-lg">
+                    <div class="req-member-row">
+                      <span class="name">{r.member_name}</span>
+                      <span class={TYPE_BADGE_CLASSES[r.member_type]}>{TYPE_LABELS[r.member_type]}</span>
+                    </div>
                   </td>
-                  <td>
+                  <td class="col-status">
                     <span class={REQUEST_BADGE_CLASSES[r.status]}>{REQUEST_STATUS_LABELS[r.status]}</span>
                   </td>
-                  <td class="small">{r.member_note}</td>
-                  <td class="small">{r.admin_note}</td>
+                  <td>{r.member_note}</td>
+                  <td class="col-staffnote">{r.admin_note}</td>
                 </tr>
               ))}
             </tbody>
