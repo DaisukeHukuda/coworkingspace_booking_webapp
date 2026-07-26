@@ -28,7 +28,7 @@ export const REQUEST_BADGE_CLASSES: Record<RequestStatus, string> = {
 };
 
 const OK_MESSAGES: Record<string, string> = {
-  requested: 'リクエストを送信しました。確定/否認の結果はメールでお知らせします',
+  requested: 'リクエストを受け付けました。スタッフが確認のうえ、確定/否認をメールでお知らせします',
   cancelled: 'キャンセルしました',
   hidden: '一覧から非表示にしました'
 };
@@ -36,7 +36,7 @@ const OK_MESSAGES: Record<string, string> = {
 const ERROR_MESSAGES: Record<string, string> = {
   invalid: '入力内容に誤りがあります。日付と時間（30分単位・終了は開始より後）をご確認ください',
   closed: 'この日は受付を停止しています',
-  duplicate: 'この日時にはすでにリクエスト済みです',
+  duplicate: '同じ時間帯のリクエストがすでにあります',
   unavailable: 'この日はSquare側の空きがないため、現在ご案内できません'
 };
 
@@ -45,7 +45,13 @@ const NOTE_MAX = 500;
 // 同日に複数の状態があるときのドットの優先度（確定 > 申請中 > 否認）
 const MARK_PRIORITY: Record<string, number> = { confirmed: 3, pending: 2, declined: 1 };
 
-const MemberShell = (props: { title: string; children: Child }) => (
+// 'YYYY-MM-DD' を「7月30日」の形式にする（会員ページの見出し表記。formatMD の「7/30」とは別書式）
+function formatKanjiMD(date: string): string {
+  const [, m, d] = date.split('-');
+  return `${Number(m)}月${Number(d)}日`;
+}
+
+const MemberShell = (props: { title: string; banner?: Child; children: Child }) => (
   <html lang="ja">
     <head>
       <meta charset="utf-8" />
@@ -55,14 +61,21 @@ const MemberShell = (props: { title: string; children: Child }) => (
       <link rel="stylesheet" href="/style.css" />
     </head>
     <body>
-      <header class="site-header">
-        <div class="inner">
-          <span class="brand">
-            TORCH<small>Coworking Space</small>
-          </span>
-        </div>
-      </header>
-      <main class="member-wrap">{props.children}</main>
+      <div class="member-shell">
+        <header class="member-header">
+          <div class="member-header-brand">
+            <span class="t1">TORCH</span>
+            <span class="t2">COWORKING SPACE</span>
+          </div>
+          <div class="member-header-tag">
+            MEMBER
+            <br />
+            BOOKING
+          </div>
+        </header>
+        {props.banner}
+        <main class="member-wrap">{props.children}</main>
+      </div>
     </body>
   </html>
 );
@@ -103,7 +116,7 @@ member.get('/:token', async (c) => {
 
   const monthStart = `${month}-01`;
   const monthEnd = addDays(`${addMonths(month, 1)}-01`, -1);
-  const [closedResult, requestsResult, marksResult, selectedClosedRow] = await Promise.all([
+  const [closedResult, requestsResult, marksResult, selectedClosedRow, nextConfirmedRow] = await Promise.all([
     c.env.DB.prepare('SELECT date FROM closed_dates WHERE date >= ? AND date <= ?')
       .bind(monthStart, monthEnd).all<{ date: string }>(),
     // 一覧は会員が非表示にした行を出さない（§17.4。管理画面には残る）
@@ -118,7 +131,13 @@ member.get('/:token', async (c) => {
     // 選択日の停止判定は表示中の月に依存させない（?month=別月&date=停止日 の組み合わせ対策）
     selectedDate !== null
       ? c.env.DB.prepare('SELECT date FROM closed_dates WHERE date = ?').bind(selectedDate).first<{ date: string }>()
-      : Promise.resolve(null)
+      : Promise.resolve(null),
+    // 「次回のご利用」カード用: 本人の今日以降で最も近い確定予約1件（§4-3）
+    c.env.DB.prepare(
+      `SELECT date, start_time, end_time FROM requests
+       WHERE member_id = ? AND status = 'confirmed' AND date >= ?
+       ORDER BY date, start_time LIMIT 1`
+    ).bind(m.id, today).first<{ date: string; start_time: string; end_time: string }>()
   ]);
   const closedSet = new Set(closedResult.results.map((r) => r.date));
   const myRequests = requestsResult.results;
@@ -160,213 +179,253 @@ member.get('/:token', async (c) => {
   const okParam = c.req.query('ok');
   const errorParam = c.req.query('error');
 
-  return c.html(
-    <MemberShell title={`${m.name}さん | TORCH 会員予約`}>
-      <div class="page-head">
-        <span class="eyebrow">Member</span>
-        <h1>{m.name} さん</h1>
-        <span class={TYPE_BADGE_CLASSES[m.member_type]}>{TYPE_LABELS[m.member_type]}</span>
-      </div>
+  const banner = (
+    <>
       {okParam && OK_MESSAGES[okParam] && <p class="msg-ok">{OK_MESSAGES[okParam]}</p>}
       {errorParam && ERROR_MESSAGES[errorParam] && <p class="msg-error">{ERROR_MESSAGES[errorParam]}</p>}
+    </>
+  );
 
-      <div class="cal-head">
-        <h2>
-          {y}年{Number(mo)}月
-        </h2>
-        <div>
-          {month > minMonth ? (
-            <a class="btn btn-sm" href={`/m/${token}?month=${prevMonth}`}>
-              &laquo; 前月
-            </a>
-          ) : null}{' '}
-          {month < maxMonth ? (
-            <a class="btn btn-sm" href={`/m/${token}?month=${nextMonth}`}>
-              翌月 &raquo;
-            </a>
-          ) : null}
+  return c.html(
+    <MemberShell title={`${m.name}さん | TORCH 会員予約`} banner={banner}>
+      <div class="member-hero">
+        <div class="greet">こんにちは、</div>
+        <div class="name-row">
+          <span class="name">{m.name} さま</span>
+          <span class={TYPE_BADGE_CLASSES[m.member_type]}>{TYPE_LABELS[m.member_type]}</span>
         </div>
       </div>
-      <table class="cal">
-        <thead>
-          <tr>
-            {WEEKDAY_LABELS.map((w, i) => (
-              <th class={i === 0 ? 'sun' : i === 6 ? 'sat' : undefined}>{w}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {grid.map((week) => (
-            <tr>
-              {week.map((d, i) => {
-                const dowClass = i === 0 ? ' sun' : i === 6 ? ' sat' : '';
-                if (d === null) return <td class={dowClass.trim() || undefined}></td>;
-                const dayNum = String(Number(d.slice(8, 10)));
-                const mark = markByDate.get(d);
-                if (d < today || d > maxDate) {
-                  return (
-                    <td class={dowClass.trim() || undefined}>
-                      <span class="day-off">{dayNum}</span>
-                    </td>
-                  );
-                }
-                if (closedSet.has(d)) {
-                  return (
-                    <td class={dowClass.trim() || undefined}>
-                      <span class="day-off">
-                        {dayNum}
-                        <span class="mark">停</span>
-                        {mark && <span class={`cal-dot dot-${mark}`}></span>}
-                      </span>
-                    </td>
-                  );
-                }
-                if (emptyDates.has(d)) {
-                  return (
-                    <td class={dowClass.trim() || undefined}>
-                      <span class="day-off">
-                        {dayNum}
-                        <span class="mark mark-x">×</span>
-                        {mark && <span class={`cal-dot dot-${mark}`}></span>}
-                      </span>
-                    </td>
-                  );
-                }
-                return (
-                  <td class={`${d === selectedDate ? 'selected' : ''}${dowClass}`.trim() || undefined}>
-                    <a href={`/m/${token}?date=${d}`}>
-                      <span class="day-num">{dayNum}</span>
-                      {mark && <span class={`cal-dot dot-${mark}`}></span>}
-                    </a>
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p class="cal-legend small">
-        <span class="legend-item">
-          <span class="cal-dot dot-pending"></span>申請中
-        </span>
-        <span class="legend-item">
-          <span class="cal-dot dot-confirmed"></span>確定
-        </span>
-        <span class="legend-item">
-          <span class="cal-dot dot-declined"></span>否認
-        </span>
-      </p>
-      <p class="muted small">日付を選ぶと開始・終了時刻を選べます（{formatMD(today)}〜{formatMD(maxDate)} 受付）</p>
-      {syncEnabled && (
-        <p class="muted small">
-          ×の日はSquare側の空きがありません／
-          {lastFetched
-            ? `${formatStampJst(lastFetched)}時点の空き状況です`
-            : '空き情報をまだ取得できていません。表示はまもなく更新されます'}
-        </p>
-      )}
 
-      {selectedDate && selectedClosed && (
-        <p class="msg-error">{formatMD(selectedDate)} は受付を停止しています。別の日をお選びください。</p>
-      )}
-
-      {selectedDate && !selectedClosed && (
-        <>
-          <h2>
-            {formatMD(selectedDate)}（{weekdayOf(selectedDate)}）のリクエスト
-          </h2>
-          {syncEnabled && selectedCacheStarts === null ? (
-            <p class="muted">この日の空き情報を取得中です。しばらくたってから再度お試しください。</p>
-          ) : syncEnabled && selectedCacheStarts !== null && selectedCacheStarts.length === 0 ? (
-            <p class="muted">この日はSquare側で空きがありません。別の日をお選びください。</p>
-          ) : (
-            <form class="card card-pad" method="post" action={`/m/${token}/requests`}>
-              <input type="hidden" name="date" value={selectedDate} />
-              <div class="field">
-                <label>開始時刻</label>
-                <select name="start">
-                  {startOptions.map((t) => (
-                    <option value={t}>{t}</option>
-                  ))}
-                </select>
+      {nextConfirmedRow && (
+        <div class="member-block">
+          <div class="next-card">
+            <div class="next-bar">
+              <span class="lbl">次回のご利用</span>
+              <span class="stat">確定</span>
+            </div>
+            <div class="next-body">
+              <div class="next-date">
+                {formatKanjiMD(nextConfirmedRow.date)}
+                <span class="wd">（{weekdayOf(nextConfirmedRow.date)}）</span>
               </div>
-              <div class="field">
-                <label>終了時刻</label>
-                <select name="end">
-                  {endOptions.map((t) => (
-                    <option value={t}>{t}</option>
-                  ))}
-                </select>
+              <div class="next-time">
+                {nextConfirmedRow.start_time} — {nextConfirmedRow.end_time}
               </div>
-              <div class="field">
-                <label>ひとことメモ（任意・人数やご用件など）</label>
-                <textarea name="note" maxlength={NOTE_MAX}></textarea>
-              </div>
-              <button class="btn btn-primary btn-lg" type="submit">
-                リクエスト送信
-              </button>
-              <p class="muted small" style="margin:12px 0 0">
-                スタッフ確認後に確定します。結果はメールでお知らせします。
-              </p>
-            </form>
-          )}
-        </>
-      )}
-
-      <h2>あなたのリクエスト</h2>
-      {myRequests.length === 0 ? (
-        <p class="muted">まだリクエストはありません。カレンダーから日付を選んで送信してください。</p>
-      ) : (
-        <div class="tbl-wrap">
-          <table class="tbl">
-            <thead>
-              <tr>
-                <th>日時</th>
-                <th>状態</th>
-                <th>メモ</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {myRequests.map((r) => {
-                const muted = r.status === 'cancelled' || r.status === 'declined';
-                return (
-                  <tr class={muted ? 'row-muted' : undefined}>
-                    <td class="req-when">
-                      {formatMD(r.date)} {r.start_time}〜{r.end_time}
-                    </td>
-                    <td>
-                      <span class={REQUEST_BADGE_CLASSES[r.status]}>{REQUEST_STATUS_LABELS[r.status]}</span>
-                    </td>
-                    <td class="small">
-                      {r.member_note}
-                      {r.status === 'declined' && r.admin_note ? (
-                        <div class="muted">スタッフより: {r.admin_note}</div>
-                      ) : null}
-                    </td>
-                    <td class="actions">
-                      {(r.status === 'pending' || r.status === 'confirmed') && (
-                        <form method="post" action={`/m/${token}/requests/${r.id}/cancel`}>
-                          <button class="btn btn-sm btn-danger" type="submit">
-                            キャンセル
-                          </button>
-                        </form>
-                      )}
-                      {(r.status === 'declined' || r.status === 'cancelled') && (
-                        <form method="post" action={`/m/${token}/requests/${r.id}/hide`}>
-                          <button class="btn btn-sm" type="submit">
-                            非表示
-                          </button>
-                        </form>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+              <p class="next-note">お待ちしております。当日は入口の灯りを目印にお越しください。</p>
+            </div>
+          </div>
         </div>
       )}
+
+      <div class="member-block">
+        <span class="eyebrow cal-eyebrow">SELECT A DAY</span>
+        <div class="cal-nav">
+          {month > minMonth ? (
+            <a class="cal-nav-btn" href={`/m/${token}?month=${prevMonth}`} aria-label="前の月">
+              &lsaquo;
+            </a>
+          ) : (
+            <span class="cal-nav-btn is-disabled" aria-disabled="true">
+              &lsaquo;
+            </span>
+          )}
+          <span class="cal-month">
+            {y}年 {Number(mo)}月
+          </span>
+          {month < maxMonth ? (
+            <a class="cal-nav-btn" href={`/m/${token}?month=${nextMonth}`} aria-label="次の月">
+              &rsaquo;
+            </a>
+          ) : (
+            <span class="cal-nav-btn is-disabled" aria-disabled="true">
+              &rsaquo;
+            </span>
+          )}
+        </div>
+        <div class="cal-grid">
+          {WEEKDAY_LABELS.map((w, i) => (
+            <div class={`cal-dow${i === 0 ? ' sun' : i === 6 ? ' sat' : ''}`}>{w}</div>
+          ))}
+          {grid.flat().map((d) => {
+            if (d === null) return <div class="cal-cell cal-empty"></div>;
+            const dayNum = String(Number(d.slice(8, 10)));
+            const mark = markByDate.get(d);
+            const dot = mark ? <span class={`cal-dot dot-${mark}`}></span> : null;
+
+            if (d < today || d > maxDate) {
+              return (
+                <span class="cal-cell is-off" aria-disabled="true">
+                  <span class="cal-num">{dayNum}</span>
+                </span>
+              );
+            }
+            if (closedSet.has(d)) {
+              return (
+                <span class="cal-cell is-closed" aria-disabled="true">
+                  <span class="cal-num">{dayNum}</span>
+                  <span class="mark">停</span>
+                  <span class="sr-only">受付停止日</span>
+                  {dot}
+                </span>
+              );
+            }
+            if (emptyDates.has(d)) {
+              return (
+                <span class="cal-cell is-full" aria-disabled="true">
+                  <span class="cal-num">{dayNum}</span>
+                  <span class="mark mark-x">×</span>
+                  <span class="sr-only">満席</span>
+                  {dot}
+                </span>
+              );
+            }
+            const stateClass = `${d === selectedDate ? ' is-selected' : ''}${d === today ? ' is-today' : ''}`;
+            return (
+              <a class={`cal-cell${stateClass}`} href={`/m/${token}?date=${d}#form`}>
+                <span class="cal-num">{dayNum}</span>
+                {dot}
+              </a>
+            );
+          })}
+        </div>
+        <p class="cal-legend">
+          <span class="legend-item">
+            <span class="cal-dot dot-pending"></span>申請中
+          </span>
+          <span class="legend-item">
+            <span class="cal-dot dot-confirmed"></span>確定
+          </span>
+          <span class="legend-item">
+            <span class="cal-dot dot-declined"></span>否認
+          </span>
+          <span class="legend-item">
+            <span class="legend-chip legend-stop">停</span>＝受付停止日
+          </span>
+          <span class="legend-item">
+            <span class="legend-chip legend-x">×</span>＝満席
+          </span>
+        </p>
+        <p class="member-note">
+          日付を選ぶと開始・終了時刻を選べます（{formatMD(today)}〜{formatMD(maxDate)} 受付）
+        </p>
+        {syncEnabled && (
+          <p class="member-note">
+            ×の日はSquare側の空きがありません／
+            {lastFetched
+              ? `${formatStampJst(lastFetched)}時点の空き状況です`
+              : '空き情報をまだ取得できていません。表示はまもなく更新されます'}
+          </p>
+        )}
+      </div>
+
+      <div class="member-block" id="form">
+        {!selectedDate && (
+          <div class="form-empty">
+            <div class="form-empty-title">ご利用になりたい日を選んでください</div>
+            <div class="form-empty-sub">上のカレンダーで日付を押すと、時間の入力欄がここに開きます。</div>
+          </div>
+        )}
+
+        {selectedDate && selectedClosed && (
+          <p class="msg-error">{formatKanjiMD(selectedDate)} は受付を停止しています。別の日をお選びください。</p>
+        )}
+
+        {selectedDate && !selectedClosed && (
+          <>
+            {syncEnabled && selectedCacheStarts === null ? (
+              <div class="form-status">この日の空き情報を取得中です。しばらくたってから再度お試しください。</div>
+            ) : syncEnabled && selectedCacheStarts !== null && selectedCacheStarts.length === 0 ? (
+              <div class="form-status">この日はSquare側で空きがありません。別の日をお選びください。</div>
+            ) : (
+              <div class="form-card">
+                <div class="form-bar">{formatKanjiMD(selectedDate)}（{weekdayOf(selectedDate)}）のご利用</div>
+                <form class="form-body" method="post" action={`/m/${token}/requests`}>
+                  <input type="hidden" name="date" value={selectedDate} />
+                  <div class="form-row-2">
+                    <label class="form-field">
+                      <span>開始時刻</span>
+                      <select name="start">
+                        {startOptions.map((t) => (
+                          <option value={t}>{t}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label class="form-field">
+                      <span>終了時刻</span>
+                      <select name="end">
+                        {endOptions.map((t) => (
+                          <option value={t}>{t}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <p class="form-hint">9:00〜18:00 の間で、30分きざみでお選びいただけます。</p>
+                  <label class="form-field form-field-note">
+                    <span>スタッフへのひとこと（任意・人数やご用件など）</span>
+                    <textarea name="note" maxlength={NOTE_MAX}></textarea>
+                  </label>
+                  <button class="btn btn-primary btn-lg btn-block" type="submit">
+                    リクエスト送信
+                  </button>
+                  <p class="form-note">
+                    この時点ではまだ確定ではありません。
+                    <br />
+                    スタッフの確認後、メールでお知らせします。
+                  </p>
+                </form>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      <div class="member-block member-block-last">
+        <div class="reqs-head">
+          <h2>あなたのリクエスト</h2>
+          <span class="reqs-count">{myRequests.length} 件</span>
+        </div>
+        {myRequests.length === 0 ? (
+          <p class="member-note">まだリクエストはありません。カレンダーから日付を選んで送信してください。</p>
+        ) : (
+          <div class="req-cards">
+            {myRequests.map((r) => {
+              const muted = r.status === 'cancelled' || r.status === 'declined';
+              return (
+                <div class={`req-card${muted ? ' is-muted' : ''}`}>
+                  <div class="req-card-top">
+                    <span class="req-card-when">
+                      {formatMD(r.date)} {r.start_time}〜{r.end_time}
+                    </span>
+                    <span class={REQUEST_BADGE_CLASSES[r.status]}>{REQUEST_STATUS_LABELS[r.status]}</span>
+                  </div>
+                  <div class="req-card-bottom">
+                    <span class="req-card-memo">
+                      {r.member_note}
+                      {r.status === 'declined' && r.admin_note ? (
+                        <span class="req-card-admin-note">スタッフより: {r.admin_note}</span>
+                      ) : null}
+                    </span>
+                    {(r.status === 'pending' || r.status === 'confirmed') && (
+                      <form method="post" action={`/m/${token}/requests/${r.id}/cancel`}>
+                        <button class="btn btn-sm" type="submit">
+                          キャンセル
+                        </button>
+                      </form>
+                    )}
+                    {(r.status === 'declined' || r.status === 'cancelled') && (
+                      <form method="post" action={`/m/${token}/requests/${r.id}/hide`}>
+                        <button class="btn btn-sm" type="submit">
+                          非表示
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </MemberShell>
   );
 });

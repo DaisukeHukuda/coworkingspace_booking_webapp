@@ -33,7 +33,7 @@ describe('member requests', () => {
     expect(res.status).toBe(200);
     const html = await res.text();
     const [ty, tm] = monthOf(target).split('-');
-    expect(html).toContain(`${ty}年${Number(tm)}月`); // 例: 2026年7月（先頭ゼロなし）
+    expect(html).toContain(`${ty}年 ${Number(tm)}月`); // 例: 2026年 7月（先頭ゼロなし・R2デザインで年月間にスペース）
     expect(html).toContain('開始時刻');
     expect(html).toContain('終了時刻');
     expect(html).toContain('<option value="10:00">10:00</option>'); // 既定の受付時間帯 10:00〜21:00 の開始側先頭
