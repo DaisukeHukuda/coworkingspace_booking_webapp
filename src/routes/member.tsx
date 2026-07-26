@@ -58,7 +58,7 @@ const MemberShell = (props: { title: string; children: Child }) => (
       <header class="site-header">
         <div class="inner">
           <span class="brand">
-            TORCH<small>MEMBER BOOKING</small>
+            TORCH<small>Coworking Space</small>
           </span>
         </div>
       </header>

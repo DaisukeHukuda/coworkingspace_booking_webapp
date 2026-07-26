@@ -22,7 +22,7 @@ export const Layout = (props: { title: string; active?: string; children: Child 
       <header class="site-header">
         <div class="inner">
           <a class="brand" href="/admin">
-            TORCH<small>MEMBER BOOKING</small>
+            TORCH<small>Coworking Space</small>
           </a>
           <nav class="nav">
             {NAV_ITEMS.map((item) => (

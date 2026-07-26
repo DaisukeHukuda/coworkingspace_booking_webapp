@@ -26,7 +26,7 @@ const LoginPage = (props: { error: string | null }) => (
       <main class="login-wrap">
         <form class="login-card" method="post" action="/admin/login">
           <div class="brand-lg">
-            TORCH<small>MEMBER BOOKING</small>
+            TORCH<small>Coworking Space</small>
           </div>
           {props.error && <p class="msg-error">{props.error}</p>}
           <div class="field" style="margin:24px 0 16px">
